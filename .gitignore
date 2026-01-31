@@ -1,0 +1,37 @@
+*.class
+*.log
+*.pyc
+*.swp
+.atom/
+.buildlog/
+.history
+.svn/
+.cxx
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# Flutter/Dart/Pub related
+/pubspec.lock
+/example/pubspec.lock
+**/doc/api/
+.dart_tool/
+.packages
+build/
+
+# Plugin symlinks
+**/linux/flutter/ephemeral/
+**/windows/flutter/ephemeral/
+
+# Gradle build artifacts
+**/.gradle/
+**/android/local.properties
+**/android/app/src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java
+
+# Flutter generated files
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+

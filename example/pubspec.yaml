@@ -1,0 +1,50 @@
+name: preciosai_example
+publish_to: "none" # Remove this line if you wish to publish to pub.dev
+
+environment:
+  sdk: ^3.8.1
+  flutter: ">=3.32.1"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_launcher_icons: ^0.14.4
+  image_picker: ^0.8.7
+  flutter_staggered_grid_view: ^0.7.0
+  path_provider: ^2.0.0
+  archive: ^3.0.0
+  http: ^1.0.0
+  video_player: ^2.10.0
+  google_fonts: ^6.3.2
+  audioplayers: ^6.5.1
+  saver_gallery: ^4.1.0
+  permission_handler: ^12.0.1
+  flutter_native_splash: ^2.4.0
+  cupertino_icons: ^1.0.8
+  preciosai:
+    path: ../
+
+dev_dependencies:
+  integration_test:
+    sdk: flutter
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/logo_my.png
+    - assets/models/
+    - assets/home_screen.mp4
+    - assets/gallery_images/full_body/
+    - assets/gallery_images/medium_shot/
+    - assets/gallery_images/portrait/
+    - assets/icons/
+    - assets/audio/
+    - assets/animation/
+
+flutter_launcher_icons:
+  android: true
+  image_path: "assets/logo_my.png"

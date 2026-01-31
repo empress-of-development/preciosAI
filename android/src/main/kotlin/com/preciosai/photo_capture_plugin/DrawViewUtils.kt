@@ -1,0 +1,298 @@
+package com.preciosai.photo_capture_plugin
+
+import android.graphics.*
+import kotlin.math.max
+import android.util.Log
+
+
+data class OverlayState(
+    val result: InstanceObj?,
+    val refDetectionResult: InstanceObj?,
+    val isFrontCamera: Boolean,
+    val showPulseRect: Boolean,
+    val rectAlpha: Int,
+    val showBackArrow: Boolean,
+    val captureRequested: Boolean,
+    val arrowAnimationOffset: Float
+)
+
+
+class OverlayRenderer {
+
+    companion object {
+
+        private const val TAG = "CameraView - DrawViewUtils"
+
+        private const val confidenceThreshold = 0.2f
+
+        private const val BOX_CORNER_RADIUS = 12f
+
+        private val skeletonUpperBody = arrayOf(intArrayOf(8, 10), intArrayOf(6, 8), intArrayOf(5, 6), intArrayOf(5, 7), intArrayOf(7, 9))
+        private val skeletonUpperBodyIndexes = arrayOf(10, 8, 6, 5, 7, 9)
+        private val skeletonLowerBody = arrayOf(intArrayOf(16, 14), intArrayOf(14, 12), intArrayOf(11, 12), intArrayOf(13, 11), intArrayOf(15, 13))
+        private val skeletonLowerBodyIndexes = arrayOf(16, 14, 12, 11, 13, 15)
+
+        private val skeletonExcludedIndexes = arrayOf(17, 18, 19, 20, 21, 22)
+
+        private val skeletonPartially = arrayOf(
+            intArrayOf(5, 11), intArrayOf(6, 12), // sides of the body
+            intArrayOf(1, 2), intArrayOf(0, 1), intArrayOf(0, 2), // eyes and nose
+            intArrayOf(1, 3), intArrayOf(2, 4), // ears // intArrayOf(3, 5), intArrayOf(4, 6),
+            intArrayOf(15, 17), intArrayOf(15, 18), intArrayOf(15, 19), intArrayOf(16, 20), intArrayOf(16, 21), intArrayOf(16, 22), // feets
+            intArrayOf(91, 92), intArrayOf(92, 93), intArrayOf(93, 94), intArrayOf(94, 95), intArrayOf(91, 96), // palms
+            intArrayOf(96, 97), intArrayOf(97, 98),
+            intArrayOf(98, 99), intArrayOf(91, 100), intArrayOf(100, 101), intArrayOf(101, 102), intArrayOf(102, 103),
+            intArrayOf(91, 104), intArrayOf(104, 105), intArrayOf(105, 106), intArrayOf(106, 107), intArrayOf(91, 108),
+            intArrayOf(108, 109), intArrayOf(109, 110), intArrayOf(110, 111), intArrayOf(112, 113), intArrayOf(113, 114),
+            intArrayOf(114, 115), intArrayOf(115, 116), intArrayOf(112, 117), intArrayOf(117, 118), intArrayOf(118, 119),
+            intArrayOf(119, 120), intArrayOf(112, 121), intArrayOf(121, 122), intArrayOf(122, 123), intArrayOf(123, 124),
+            intArrayOf(112, 125), intArrayOf(125, 126), intArrayOf(126, 127), intArrayOf(127, 128), intArrayOf(112, 129),
+            intArrayOf(129, 130), intArrayOf(130, 131), intArrayOf(131, 132)
+        )
+
+        private val boneColors = listOf(Color.parseColor("#B3B19CD9"), Color.parseColor("#B3B4F9D7"))
+
+    }
+
+    private val paint = Paint().apply { isAntiAlias = true }
+
+    private val bonePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.parseColor("#B3B4F9D7")
+        style = Paint.Style.STROKE
+        strokeWidth = 6f
+        pathEffect = DashPathEffect(floatArrayOf(12f, 12f), 0f)
+        alpha = 160
+    }
+
+    private val jointPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.parseColor("#B3B4F9D7")
+        style = Paint.Style.FILL
+    }
+
+    private val bonePaintCurved = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.parseColor("#B3B4F9D7")
+        style = Paint.Style.STROKE
+        strokeWidth = 6f
+        strokeCap = Paint.Cap.ROUND
+        strokeJoin = Paint.Join.ROUND
+        pathEffect = CornerPathEffect(70f) // радиус скругления
+        alpha = 160
+    }
+
+    private fun captureDraw(canvas: Canvas, width: Float, height: Float) {
+        val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.FILL
+            color = Color.argb(200, 0, 0, 255)
+            textSize = 64f
+            typeface = Typeface.MONOSPACE
+        }
+
+        val bounds = Rect()
+        var text = "Adjust the frame and"
+        textPaint.getTextBounds(text, 0, text.length, bounds)
+
+        var x = (width - bounds.width()) / 2f
+        var y = (height + bounds.height()) / 6.5f
+
+        canvas.drawText(text, x, y, textPaint)
+
+        val bounds_1 = Rect()
+        text = "do not move the camera!"
+        textPaint.getTextBounds(text, 0, text.length, bounds_1)
+
+        x = (width - bounds_1.width()) / 2f
+        y = (height + bounds_1.height()) / 6.5f + bounds.height()
+
+        canvas.drawText(text, x, y, textPaint)
+
+    }
+
+    private fun drawLimb(canvas: Canvas, joints: Array<PointF?>, jointsIndexes: Array<Int>): Boolean {
+        val path = Path()
+        var idx = 0
+        var p = joints.getOrNull(jointsIndexes[idx])
+        while (p == null) {
+            idx += 1
+            if (idx >= jointsIndexes.size) return false
+            p = joints.getOrNull(jointsIndexes[idx])
+        }
+
+        path.moveTo(joints[jointsIndexes[idx]]!!.x, joints[jointsIndexes[idx]]!!.y)
+        idx += 1
+        for (i in idx until jointsIndexes.size) {
+            p = joints.getOrNull(jointsIndexes[i])
+            // нет линии плеч или линии таза => не рисуем изогнутые линии, рисуем чисто суставы
+            if (i in arrayOf(2, 3) && p == null) return false
+            if (p != null) path.lineTo(p.x, p.y)
+        }
+        canvas.drawPath(path, bonePaintCurved)
+        return true
+    }
+
+    private fun drawVerticalBackArrow(canvas: Canvas, arrowAnimationOffset: Float, width: Float, height: Float) {
+        val w = width.toFloat()
+        val h = height.toFloat()
+
+        // Начало и конец движения стрелки
+        val startY = h * 0.75f
+        val endY = h
+
+        // Смещение по анимации (0 -> 1)
+        val currentY = startY + (endY - startY) * arrowAnimationOffset
+
+        val topWidth = w * 0.08f
+        val bottomWidth = w * 0.18f
+        val arrowWidth = topWidth + (bottomWidth - topWidth) * arrowAnimationOffset
+
+        val headHeight = arrowWidth * 1.2f
+
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+        paint.style = Paint.Style.FILL
+
+        val startColor = Color.argb(200, 63, 54, 145)
+        val endColor = Color.argb(80, 255, 255, 255)
+        paint.shader = LinearGradient(
+            w/2, currentY - topWidth,
+            w/2, currentY + headHeight,
+            intArrayOf(startColor, endColor),
+            null,
+            Shader.TileMode.CLAMP
+        )
+
+        // Тело стрелки - трапеция
+        val path = Path()
+        path.moveTo(w/2 - topWidth/2, currentY - topWidth)
+        path.lineTo(w/2 + topWidth/2, currentY - topWidth)
+        path.lineTo(w/2 + arrowWidth/2, currentY)
+        path.lineTo(w/2 - arrowWidth/2, currentY)
+        path.close()
+        canvas.drawPath(path, paint)
+
+        // Голова стрелки - треугольник
+        val headPath = Path()
+        headPath.moveTo(w/2 - arrowWidth, currentY)
+        headPath.lineTo(w/2 + arrowWidth, currentY)
+        headPath.lineTo(w/2, currentY + headHeight)
+        headPath.close()
+        canvas.drawPath(headPath, paint)
+    }
+
+    public fun draw(
+        canvas: Canvas,
+        width: Float,
+        height: Float,
+        state: OverlayState
+    ) {
+
+        Log.d(TAG, "captureRequested: ${state.captureRequested}")
+        if (state.captureRequested) {
+            captureDraw(canvas, width, height)
+            return
+        }
+
+        if (state.result == null || state.refDetectionResult == null) return
+
+        val resWidth: Float = state.result.imageShape.width.toFloat()
+        val resHeight: Float = state.result.imageShape.height.toFloat()
+        val frameWidth: Float = width.toFloat()
+        val frameHeight: Float = width.toFloat() * 640f / 480f //TODO: костыль!!!
+
+        val topBorder = (height.toFloat() - frameHeight) / 2f
+
+        val scale: Float = max(frameWidth / resWidth, frameHeight / resHeight)
+
+        val dx = (frameWidth - resWidth * scale) / 2f
+        val dy = (frameHeight - resHeight * scale) / 2f
+
+        if (state.showPulseRect && state.refDetectionResult != null) {
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.FILL
+                color = Color.argb(state.rectAlpha, 0, 0, 255) // синий с меняющейся прозрачностью
+            }
+            for (refPred in state.refDetectionResult!!.objects) {
+                canvas.drawRect(
+                    refPred.bbox.xywhn.left * resWidth * scale + dx,
+                    topBorder + refPred.bbox.xywhn.top * resHeight * scale + dy,
+                    refPred.bbox.xywhn.right * resWidth * scale + dx,
+                    topBorder + refPred.bbox.xywhn.bottom * resHeight * scale + dy,
+                    paint
+                )
+            }
+        }
+
+        val resList = state.result.objects + (state.refDetectionResult!!.objects ?: emptyList())
+
+        // Keypoints & skeleton
+        for ((idx, person) in resList.withIndex()) {
+            var currColor = Color.parseColor("#D50000")
+            if (idx < boneColors.size) {
+                currColor = boneColors[idx]
+            }
+            bonePaint.color = currColor
+            bonePaintCurved.color = currColor
+            jointPaint.color = currColor
+
+            val points = arrayOfNulls<PointF>(person.keypoints.xyn.size)
+            for (i in person.keypoints.xyn.indices) {
+                if (person.keypoints.scores[i] > confidenceThreshold && i !in skeletonExcludedIndexes) {
+                    val pxCam = person.keypoints.xyn[i].first * resWidth
+                    val pyCam = person.keypoints.xyn[i].second * resHeight
+                    var px = pxCam * scale + dx
+                    var py = topBorder + pyCam * scale + dy
+
+                    // For front camera POSE, apply horizontal flip
+                    if (state.isFrontCamera) {
+                        px = frameWidth - px
+                    }
+
+                    canvas.drawCircle(px, py, 8f, jointPaint)
+                    points[i] = PointF(px, py)
+                }
+            }
+
+            var skeletonJoints = skeletonPartially
+            var drawRes = drawLimb(canvas, points, skeletonUpperBodyIndexes)
+            if (!drawRes) skeletonJoints = skeletonPartially.plus(skeletonUpperBody)
+
+            drawRes = drawLimb(canvas, points, skeletonLowerBodyIndexes)
+            if (!drawRes) skeletonJoints = skeletonPartially.plus(skeletonLowerBody)
+
+            // Skeleton connection
+            for ((idx, bone) in skeletonJoints.withIndex()) {
+                val p1 = points.getOrNull(bone[0])
+                val p2 = points.getOrNull(bone[1])
+                if (p1 != null && p2 != null) canvas.drawLine(p1.x, p1.y, p2.x, p2.y, bonePaint)
+            }
+        }
+
+        for (person in state.result.objects) {
+            // BBox
+            var left = person.bbox.xywh.left * scale + dx
+            var top = topBorder + person.bbox.xywh.top * scale + dy
+            var right = person.bbox.xywh.right * scale + dx
+            var bottom = topBorder + person.bbox.xywh.bottom * scale + dy
+
+            // Flip horizontally for front camera
+            if (state.isFrontCamera) {
+                val flippedLeft = frameWidth - right
+                val flippedRight = frameWidth - left
+                left = flippedLeft
+                right = flippedRight
+            }
+
+            paint.color = Color.argb(200, 63, 54, 145)
+            paint.style = Paint.Style.STROKE
+            paint.strokeWidth = 10f
+            paint.pathEffect = DashPathEffect(floatArrayOf(30f, 30f), 0f)
+            canvas.drawRoundRect(
+                left, top, right, bottom,
+                BOX_CORNER_RADIUS, BOX_CORNER_RADIUS,
+                paint
+            )
+        }
+        if (state.showBackArrow) {
+            drawVerticalBackArrow(canvas, state.arrowAnimationOffset, width, height)
+        }
+    }
+
+}

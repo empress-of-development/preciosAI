@@ -1,0 +1,36 @@
+name: preciosai
+
+environment:
+  sdk: ^3.8.1
+  flutter: ">=3.32.1"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  image_picker: ^0.8.7
+  flutter_staggered_grid_view: ^0.7.0
+  plugin_platform_interface: ^2.0.2
+  google_fonts: ^6.3.2
+  video_player: ^2.10.0
+  audioplayers: ^6.5.1
+  saver_gallery: ^4.1.0
+  permission_handler: ^12.0.1
+
+
+dev_dependencies:
+  coverage: ^1.13.1
+  flutter_lints: ^5.0.0
+  flutter_test:
+    sdk: flutter
+  mockito: ^5.4.4
+  very_good_analysis: ^6.0.0
+
+
+flutter:
+  uses-material-design: true
+
+  plugin:
+    platforms:
+      android:
+        package: com.preciosai.photo_capture_plugin
+        pluginClass: PhotoCapturePlugin
