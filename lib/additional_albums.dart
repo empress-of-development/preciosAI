@@ -19,10 +19,6 @@ class AlbumStorage {
     if (raw == null) return [];
 
     final decoded = (jsonDecode(raw) as List).cast<Map<String, dynamic>>();
-
-    for (final item in decoded) {
-      print('item: $item');
-    }
     return decoded.map(Album.fromJson).toList();
   }
 

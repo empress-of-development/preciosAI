@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
@@ -222,6 +223,32 @@ class _AlbumScreenState extends State<AlbumScreen> {
     }
   }
 
+  Future<void> pickRandomfromAssets() async {
+    final manifestJson = await rootBundle.loadString('AssetManifest.json');
+    final Map<String, dynamic> manifestMap = jsonDecode(manifestJson);
+
+    // Фильтруем нужные файлы
+    final jpgFiles = manifestMap.keys
+        .where(
+          (path) =>
+              path.startsWith('assets/gallery_images/') &&
+              path.toLowerCase().endsWith('.jpg'),
+        )
+        .toList();
+
+    if (jpgFiles.isEmpty) return null;
+
+    final random = Random();
+    final String? file = jpgFiles[random.nextInt(jpgFiles.length)];
+
+    if (file != null) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => ImageScanPage(imagePath: file)),
+      );
+    }
+  }
+
   final Set<int> protectedIndexes = {0, 1, 2};
 
   Future<void> _tryDeleteAlbum(int index) async {
@@ -413,7 +440,7 @@ class _AlbumScreenState extends State<AlbumScreen> {
                     padding: const EdgeInsets.only(bottom: 32),
                     child: RippleCircleButton(
                       iconPath: 'assets/icons/random_2.png',
-                      onTap: pickFromGallery,
+                      onTap: pickRandomfromAssets,
                     ),
                   ),
                 ],
@@ -512,22 +539,11 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
   File? pickedImage;
 
   Map<String, dynamic> _manifestMap = {};
-  final ImagePicker _picker = ImagePicker();
 
   @override
   void initState() {
     super.initState();
     _loadAssetImages();
-  }
-
-  Future<void> _pickFromGallery() async {
-    final XFile? file = await _picker.pickImage(source: ImageSource.gallery);
-    if (file != null) {
-      setState(() {
-        pickedImage = File(file.path);
-        selectedImage = null;
-      });
-    }
   }
 
   void _selectImage(AlbumImageRef path) {

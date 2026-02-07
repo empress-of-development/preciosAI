@@ -23,7 +23,6 @@ linter:
     - cancel_subscriptions
     - control_flow_in_finally
     - unnecessary_statements
-    - unused_import
 
 analyzer:
   errors:
