@@ -5,43 +5,97 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:uuid/uuid.dart';
 
+import 'additional_albums.dart';
 import 'glowing_button.dart';
 import 'neural_background_circles.dart';
 import 'neuro_scanner.dart';
 
+enum AlbumImageSource { asset, file }
+
+class AlbumImageRef {
+  final AlbumImageSource source;
+  final String value; // asset path OR file path
+
+  const AlbumImageRef.asset(this.value) : source = AlbumImageSource.asset;
+
+  const AlbumImageRef.file(this.value) : source = AlbumImageSource.file;
+
+  Map<String, dynamic> toJson() => {'source': source.name, 'value': value};
+
+  factory AlbumImageRef.fromJson(Map<String, dynamic> json) => AlbumImageRef._(
+    source: AlbumImageSource.values.firstWhere((e) => e.name == json['source']),
+    value: json['value'] as String,
+  );
+
+  const AlbumImageRef._({required this.source, required this.value});
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is AlbumImageRef &&
+        other.source == source &&
+        other.value == value;
+  }
+
+  @override
+  int get hashCode => Object.hash(source, value);
+}
+
 class Album {
   final String title;
-  final String titleImagePath;
-  final String imagesPath;
-  final int count;
+  final AlbumImageRef cover;
+  final String? imagesGeneralPath; // только папки для статики из ассетов
+  final List<AlbumImageRef>? imagesPathList;
+  final String uuid = const Uuid().v4();
 
   Album({
     required this.title,
-    required this.titleImagePath,
-    required this.imagesPath,
-    required this.count,
+    required this.cover,
+    this.imagesGeneralPath,
+    this.imagesPathList,
   });
+
+  Map<String, dynamic> toJson() => {
+    'title': title,
+    'cover': cover.toJson(),
+    'imagesPathList': imagesPathList!.map((e) => e.toJson()).toList(),
+  };
+
+  factory Album.fromJson(Map<String, dynamic> json) => Album(
+    title: (json['title'] ?? '').toString(),
+    cover: AlbumImageRef.fromJson(
+      (json['cover'] as Map).cast<String, dynamic>(),
+    ),
+    imagesPathList: ((json['imagesPathList'] as List?) ?? const [])
+        .whereType<Map>()
+        .map((e) => AlbumImageRef.fromJson(e.cast<String, dynamic>()))
+        .toList(),
+  );
 }
 
-final List<Album> albums = [
+final List<Album> albumsDefault = [
   Album(
     title: 'Full body',
-    count: 3,
-    titleImagePath: 'assets/gallery_images/full_body/1.jpg',
-    imagesPath: 'assets/gallery_images/full_body/',
+    cover: const AlbumImageRef.asset(
+      'assets/gallery_images/full_body/full_body_1.jpg',
+    ),
+    imagesGeneralPath: 'assets/gallery_images/full_body/',
   ),
   Album(
     title: 'Medium shot',
-    count: 3,
-    titleImagePath: 'assets/gallery_images/medium_shot/1.jpg',
-    imagesPath: 'assets/gallery_images/medium_shot/',
+    cover: const AlbumImageRef.asset(
+      'assets/gallery_images/medium_shot/medium_shot_1.jpg',
+    ),
+    imagesGeneralPath: 'assets/gallery_images/medium_shot/',
   ),
   Album(
     title: 'Portrait',
-    count: 3,
-    titleImagePath: 'assets/gallery_images/portrait/1.jpg',
-    imagesPath: 'assets/gallery_images/portrait/',
+    cover: const AlbumImageRef.asset(
+      'assets/gallery_images/portrait/portrait_1.jpg',
+    ),
+    imagesGeneralPath: 'assets/gallery_images/portrait/',
   ),
 ];
 
@@ -119,6 +173,28 @@ class AlbumScreen extends StatefulWidget {
 
 class _AlbumScreenState extends State<AlbumScreen> {
   File? pickedImage;
+  late final List<Album> builtInAlbums;
+  final List<Album> albums = [];
+
+  @override
+  void initState() {
+    super.initState();
+    builtInAlbums = List<Album>.from(albumsDefault);
+    albums.addAll(builtInAlbums);
+    _loadUserAlbums();
+  }
+
+  Future<void> _loadUserAlbums() async {
+    try {
+      final saved = await AlbumStorage.loadAlbums();
+      setState(() {
+        final existingIds = albums.map((a) => a.uuid).toSet();
+        albums.addAll(saved.where((a) => !existingIds.contains(a.uuid)));
+      });
+    } catch (e) {
+      debugPrint('Failed to load albums: $e');
+    }
+  }
 
   Future<void> pickFromGallery() async {
     final picker = ImagePicker();
@@ -139,47 +215,43 @@ class _AlbumScreenState extends State<AlbumScreen> {
     }
   }
 
+  final Set<int> protectedIndexes = {0, 1, 2};
+
+  Future<void> _tryDeleteAlbum(int index) async {
+    if (protectedIndexes.contains(index) || index == albums.length) {
+      return;
+    }
+
+    final album = albums[index];
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Do you want delete this album?'),
+        content: Text('“${album.title}” will be deleted.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    setState(() => albums.removeAt(index));
+    await AlbumStorage.deleteAlbumByTitle(album.title);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      //backgroundColor: Colors.grey.shade900,
       backgroundColor: Colors.black,
-      /*
-      appBar: AppBar(
-        backgroundColor: Colors.blueGrey.shade900,
-        elevation: 0,
-        title: const Text(
-          "Let's choose a reference photo",
-          style: TextStyle(
-            color: Color(0xFFEEEEEE),
-            fontSize: 26,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ),
-
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(kToolbarHeight),
-        child: Material(
-          elevation: 0,
-          color: Colors.white.withOpacity(0.5),
-          shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.vertical(
-              bottom: Radius.circular(24),
-            ),
-          ),
-          child: Center(child: const Text(
-            "Let's choose a reference photo",
-            style: TextStyle(
-              color: Color(0xFFEEEEEE),
-              fontSize: 26,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          ),
-        ),
-      ),
-      */
       body: Stack(
         children: [
           const NeuralNetworkWithBlurredCircles(),
@@ -219,7 +291,7 @@ class _AlbumScreenState extends State<AlbumScreen> {
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: GridView.builder(
-                    itemCount: albums.length,
+                    itemCount: albums.length + 1,
                     gridDelegate:
                         const SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: 2,
@@ -228,8 +300,57 @@ class _AlbumScreenState extends State<AlbumScreen> {
                           childAspectRatio: 0.85,
                         ),
                     itemBuilder: (context, index) {
+                      if (index == albums.length) {
+                        return AddAlbumCard(
+                          onTap: () async {
+                            final created = await Navigator.push<Album?>(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const CreateAlbumScreen(),
+                              ),
+                            );
+
+                            if (created != null) {
+                              setState(() => albums.add(created));
+                              await AlbumStorage.saveAlbum(created);
+                            }
+                          },
+                        );
+                      }
+
                       final album = albums[index];
-                      return AlbumCard(album: album);
+                      final canDelete = !protectedIndexes.contains(index);
+
+                      return Stack(
+                        children: [
+                          AlbumCard(
+                            album: album,
+                            onLongPress: () => _tryDeleteAlbum(index),
+                          ),
+
+                          // Иконка удаления (опционально). Можно убрать, если хочешь только long press.
+                          if (canDelete)
+                            Positioned(
+                              top: 8,
+                              right: 8,
+                              child: GestureDetector(
+                                onTap: () => _tryDeleteAlbum(index),
+                                child: Container(
+                                  padding: const EdgeInsets.all(6),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black54,
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: const Icon(
+                                    Icons.delete_outline,
+                                    size: 20,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      );
                     },
                   ),
                 ),
@@ -261,62 +382,11 @@ class _AlbumScreenState extends State<AlbumScreen> {
   }
 }
 
-class RoundedHeader extends StatelessWidget {
-  final String title;
-
-  const RoundedHeader({super.key, required this.title});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 160,
-      width: double.infinity,
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFFFF7A66), Color(0xFFFFA8A0)],
-        ),
-        borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(40),
-          bottomRight: Radius.circular(40),
-        ),
-      ),
-      child: SafeArea(
-        bottom: false,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Row(
-            children: [
-              GestureDetector(
-                onTap: () => Navigator.pop(context),
-                child: const Icon(
-                  Icons.arrow_back,
-                  color: Colors.white,
-                  size: 28,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                title,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 24,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class AlbumCard extends StatelessWidget {
   final Album album;
+  final VoidCallback? onLongPress;
 
-  const AlbumCard({super.key, required this.album});
+  const AlbumCard({super.key, required this.album, this.onLongPress});
 
   @override
   Widget build(BuildContext context) {
@@ -342,15 +412,17 @@ class AlbumCard extends StatelessWidget {
           ),
         );
       },
+      onLongPress: onLongPress,
+
       child: Hero(
-        tag: 'album_${album.title}',
+        tag: 'album_${album.title}_${album.uuid}',
 
         child: Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(22),
             border: Border.all(
-              color: Colors.deepPurple.withOpacity(0.22),
-              width: 3,
+              color: Colors.deepPurple.withOpacity(0.7),
+              width: 8,
             ),
           ),
           child: ClipRRect(
@@ -358,7 +430,9 @@ class AlbumCard extends StatelessWidget {
             child: Stack(
               children: [
                 Positioned.fill(
-                  child: Image.asset(album.titleImagePath, fit: BoxFit.cover),
+                  child: album.cover.source == AlbumImageSource.asset
+                      ? Image.asset(album.cover.value, fit: BoxFit.cover)
+                      : Image.file(File(album.cover.value), fit: BoxFit.cover),
                 ),
                 Positioned.fill(
                   child: Container(
@@ -405,7 +479,7 @@ class AlbumDetailScreen extends StatefulWidget {
 }
 
 class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
-  String? selectedImage;
+  AlbumImageRef? selectedImage;
   File? pickedImage;
 
   Map<String, dynamic> _manifestMap = {};
@@ -427,7 +501,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
     }
   }
 
-  void _selectImage(String path) {
+  void _selectImage(AlbumImageRef path) {
     setState(() {
       selectedImage = path;
       pickedImage = null;
@@ -435,11 +509,13 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
   }
 
   void _continue() {
-    final imageToUse = pickedImage != null ? pickedImage!.path : selectedImage;
+    final imageToUse = pickedImage != null
+        ? pickedImage!.path
+        : selectedImage!.value;
 
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => ImageScanPage(imagePath: imageToUse!)),
+      MaterialPageRoute(builder: (_) => ImageScanPage(imagePath: imageToUse)),
     );
   }
 
@@ -453,9 +529,15 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final List<String> images = _manifestMap.keys
-        .where((String key) => key.startsWith(widget.album.imagesPath))
-        .toList();
+    final List<AlbumImageRef> images;
+    if (widget.album.imagesGeneralPath != null) {
+      images = _manifestMap.keys
+          .where((key) => key.startsWith(widget.album.imagesGeneralPath!))
+          .map((path) => AlbumImageRef.asset(path))
+          .toList();
+    } else {
+      images = widget.album.imagesPathList!;
+    }
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -526,7 +608,12 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
                             tag: 'photo_${widget.album.title}_$index',
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(16),
-                              child: Image.asset(img, fit: BoxFit.cover),
+                              child: img.source == AlbumImageSource.asset
+                                  ? Image.asset(img.value, fit: BoxFit.cover)
+                                  : Image.file(
+                                      File(img.value),
+                                      fit: BoxFit.cover,
+                                    ),
                             ),
                           ),
 
@@ -576,7 +663,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
 }
 
 class PhotoHeroScreen extends StatelessWidget {
-  final String image;
+  final AlbumImageRef image;
   final String tag;
 
   const PhotoHeroScreen({super.key, required this.image, required this.tag});
@@ -614,7 +701,9 @@ class PhotoHeroScreen extends StatelessWidget {
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(18),
                       child: InteractiveViewer(
-                        child: Image.asset(image, fit: BoxFit.contain),
+                        child: image.source == AlbumImageSource.asset
+                            ? Image.asset(image.value, fit: BoxFit.cover)
+                            : Image.file(File(image.value), fit: BoxFit.cover),
                       ),
                     ),
                   ),
@@ -630,7 +719,7 @@ class PhotoHeroScreen extends StatelessWidget {
                     padding: const EdgeInsets.only(bottom: 32),
                     child: RippleCircleButton(
                       iconPath: 'assets/icons/done.png',
-                      onTap: () => _continue(context, image),
+                      onTap: () => _continue(context, image.value),
                     ),
                   ),
                 ],
