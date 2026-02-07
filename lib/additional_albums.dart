@@ -37,9 +37,42 @@ class AlbumStorage {
     );
   }
 
-  static Future<void> deleteAlbumByTitle(String title) async {
+  static Future<void> saveAlbums(List<Album> albums) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      _key,
+      jsonEncode(albums.map((a) => a.toJson()).toList()),
+    );
+  }
+
+  static Future<void> updateAlbum(Album updated) async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_key);
+    final List<dynamic> decoded = raw == null ? [] : (jsonDecode(raw) as List);
+
+    final albums = decoded
+        .whereType<Map>()
+        .map((e) => Album.fromJson(e.cast<String, dynamic>()))
+        .toList();
+
+    final index = albums.indexWhere((a) => a.uuid == updated.uuid);
+
+    if (index == -1) {
+      // не нашли — значит uuid не совпал или prefs пусты
+      albums.add(updated);
+    } else {
+      albums[index] = updated;
+    }
+
+    await prefs.setString(
+      _key,
+      jsonEncode(albums.map((a) => a.toJson()).toList()),
+    );
+  }
+
+  static Future<void> deleteAlbumByUuid(String albumUuid) async {
     final current = await loadAlbums();
-    current.removeWhere((a) => a.title == title);
+    current.removeWhere((a) => a.uuid == albumUuid);
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(
@@ -96,24 +129,40 @@ class AddAlbumCard extends StatelessWidget {
 }
 
 class CreateAlbumScreen extends StatefulWidget {
-  const CreateAlbumScreen({super.key});
+  final Album? existing;
+
+  const CreateAlbumScreen({super.key, this.existing});
 
   @override
   State<CreateAlbumScreen> createState() => _CreateAlbumScreenState();
 }
 
 class _CreateAlbumScreenState extends State<CreateAlbumScreen> {
-  final titleCtrl = TextEditingController(text: 'My Album');
+  late final TextEditingController titleCtrl;
   AlbumImageRef? cover;
-  final List<AlbumImageRef> items = [];
+  late List<AlbumImageRef> items;
+
+  bool get isEdit => widget.existing != null;
+
+  bool get canSave => titleCtrl.text.trim().isNotEmpty && items.isNotEmpty;
+
+  @override
+  void initState() {
+    super.initState();
+    titleCtrl = TextEditingController(
+      text: widget.existing?.title ?? 'My Album',
+    );
+    cover = widget.existing?.cover;
+    items = List<AlbumImageRef>.from(
+      widget.existing?.imagesPathList ?? const [],
+    );
+  }
 
   @override
   void dispose() {
     titleCtrl.dispose();
     super.dispose();
   }
-
-  bool get canSave => titleCtrl.text.trim().isNotEmpty && items.isNotEmpty;
 
   Future<void> _pickCover() async {
     final choice = await showModalBottomSheet<String>(
@@ -194,6 +243,7 @@ class _CreateAlbumScreenState extends State<CreateAlbumScreen> {
   void _save() {
     if (!canSave) return;
     final album = Album(
+      uuid: widget.existing?.uuid,
       title: titleCtrl.text.trim(),
       cover: cover!,
       imagesPathList: List.unmodifiable(items),
@@ -212,6 +262,15 @@ class _CreateAlbumScreenState extends State<CreateAlbumScreen> {
       return Image.asset(cover!.value, fit: BoxFit.cover);
     }
     return Image.file(File(cover!.value), fit: BoxFit.cover);
+  }
+
+  void _removeItem(AlbumImageRef ref) {
+    setState(() {
+      items.remove(ref);
+      if (cover == ref) {
+        cover = items.isNotEmpty ? items.first : null;
+      }
+    });
   }
 
   @override
@@ -240,7 +299,7 @@ class _CreateAlbumScreenState extends State<CreateAlbumScreen> {
               children: [
                 const SizedBox(height: 16),
 
-                // Верхняя строка: обложка и название
+                // верхняя строка: обложка и название
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Row(
@@ -281,25 +340,78 @@ class _CreateAlbumScreenState extends State<CreateAlbumScreen> {
 
                 const SizedBox(height: 16),
 
-                // Небольшое превью того, что уже добавлено
+                // превью
                 if (items.isNotEmpty)
                   SizedBox(
                     height: 86,
                     child: ListView.separated(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       scrollDirection: Axis.horizontal,
-                      itemCount: items.length.clamp(0, 20),
+                      itemCount: items.length,
                       separatorBuilder: (_, __) => const SizedBox(width: 10),
                       itemBuilder: (_, i) {
                         final it = items[i];
-                        return ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
-                          child: SizedBox(
-                            width: 72,
-                            height: 72,
-                            child: it.source == AlbumImageSource.asset
-                                ? Image.asset(it.value, fit: BoxFit.cover)
-                                : Image.file(File(it.value), fit: BoxFit.cover),
+                        final isCover = (cover == it);
+
+                        return GestureDetector(
+                          onTap: () => setState(() => cover = it),
+                          child: Stack(
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(10),
+                                child: SizedBox(
+                                  width: 72,
+                                  height: 72,
+                                  child: it.source == AlbumImageSource.asset
+                                      ? Image.asset(it.value, fit: BoxFit.cover)
+                                      : Image.file(
+                                          File(it.value),
+                                          fit: BoxFit.cover,
+                                        ),
+                                ),
+                              ),
+                              Positioned(
+                                right: 4,
+                                top: 4,
+                                child: GestureDetector(
+                                  onTap: () => _removeItem(it),
+                                  child: Container(
+                                    padding: const EdgeInsets.all(4),
+                                    decoration: BoxDecoration(
+                                      color: Colors.black54,
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: const Icon(
+                                      Icons.close,
+                                      size: 16,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              if (isCover)
+                                Positioned(
+                                  left: 4,
+                                  bottom: 4,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.deepPurple,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: const Text(
+                                      'Cover',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
                           ),
                         );
                       },
@@ -308,7 +420,7 @@ class _CreateAlbumScreenState extends State<CreateAlbumScreen> {
 
                 const Spacer(),
 
-                // Две кнопки снизу
+                // две кнопки снизу
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
                   child: Row(

@@ -16,7 +16,7 @@ enum AlbumImageSource { asset, file }
 
 class AlbumImageRef {
   final AlbumImageSource source;
-  final String value; // asset path OR file path
+  final String value; // asset path or file path
 
   const AlbumImageRef.asset(this.value) : source = AlbumImageSource.asset;
 
@@ -46,28 +46,35 @@ class AlbumImageRef {
 class Album {
   final String title;
   final AlbumImageRef cover;
-  final String? imagesGeneralPath; // только папки для статики из ассетов
+  final String? imagesGeneralPath;
   final List<AlbumImageRef>? imagesPathList;
-  final String uuid = const Uuid().v4();
+  final String uuid;
 
   Album({
+    String? uuid,
     required this.title,
     required this.cover,
     this.imagesGeneralPath,
     this.imagesPathList,
-  });
+  }) : uuid = uuid ?? const Uuid().v4();
 
   Map<String, dynamic> toJson() => {
+    'uuid': uuid,
     'title': title,
     'cover': cover.toJson(),
-    'imagesPathList': imagesPathList!.map((e) => e.toJson()).toList(),
+    'imagesGeneralPath': imagesGeneralPath,
+    'imagesPathList': (imagesPathList ?? const [])
+        .map((e) => e.toJson())
+        .toList(),
   };
 
   factory Album.fromJson(Map<String, dynamic> json) => Album(
+    uuid: json['uuid'] as String?,
     title: (json['title'] ?? '').toString(),
     cover: AlbumImageRef.fromJson(
       (json['cover'] as Map).cast<String, dynamic>(),
     ),
+    imagesGeneralPath: json['imagesGeneralPath'] as String?,
     imagesPathList: ((json['imagesPathList'] as List?) ?? const [])
         .whereType<Map>()
         .map((e) => AlbumImageRef.fromJson(e.cast<String, dynamic>()))
@@ -245,7 +252,7 @@ class _AlbumScreenState extends State<AlbumScreen> {
     if (confirm != true) return;
 
     setState(() => albums.removeAt(index));
-    await AlbumStorage.deleteAlbumByTitle(album.title);
+    await AlbumStorage.deleteAlbumByUuid(album.uuid);
   }
 
   @override
@@ -326,9 +333,46 @@ class _AlbumScreenState extends State<AlbumScreen> {
                           AlbumCard(
                             album: album,
                             onLongPress: () => _tryDeleteAlbum(index),
+
+                            onTap: () async {
+                              final updated = await Navigator.push<Album?>(
+                                context,
+                                PageRouteBuilder(
+                                  transitionDuration: const Duration(
+                                    milliseconds: 450,
+                                  ),
+                                  pageBuilder: (_, __, ___) =>
+                                      AlbumDetailScreen(album: album),
+                                  transitionsBuilder:
+                                      (_, animation, __, child) {
+                                        return FadeTransition(
+                                          opacity: animation,
+                                          child: SlideTransition(
+                                            position: Tween(
+                                              begin: const Offset(0, 0.05),
+                                              end: Offset.zero,
+                                            ).animate(animation),
+                                            child: child,
+                                          ),
+                                        );
+                                      },
+                                ),
+                              );
+
+                              if (updated != null) {
+                                final i = albums.indexWhere(
+                                  (a) => a.uuid == updated.uuid,
+                                );
+                                if (i != -1) {
+                                  setState(() => albums[i] = updated);
+
+                                  if (canDelete)
+                                    await AlbumStorage.updateAlbum(updated);
+                                }
+                              }
+                            },
                           ),
 
-                          // Иконка удаления (опционально). Можно убрать, если хочешь только long press.
                           if (canDelete)
                             Positioned(
                               top: 8,
@@ -384,36 +428,21 @@ class _AlbumScreenState extends State<AlbumScreen> {
 
 class AlbumCard extends StatelessWidget {
   final Album album;
+  final VoidCallback? onTap;
   final VoidCallback? onLongPress;
 
-  const AlbumCard({super.key, required this.album, this.onLongPress});
+  const AlbumCard({
+    super.key,
+    required this.album,
+    this.onTap,
+    this.onLongPress,
+  });
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          PageRouteBuilder(
-            transitionDuration: const Duration(milliseconds: 450),
-            pageBuilder: (_, __, ___) => AlbumDetailScreen(album: album),
-            transitionsBuilder: (_, animation, __, child) {
-              return FadeTransition(
-                opacity: animation,
-                child: SlideTransition(
-                  position: Tween(
-                    begin: const Offset(0, 0.05),
-                    end: Offset.zero,
-                  ).animate(animation),
-                  child: child,
-                ),
-              );
-            },
-          ),
-        );
-      },
       onLongPress: onLongPress,
-
+      onTap: onTap,
       child: Hero(
         tag: 'album_${album.title}_${album.uuid}',
 
@@ -565,6 +594,25 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
           ),
         ),
         iconTheme: const IconThemeData(color: Colors.black),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.edit, size: 40),
+            tooltip: 'Edit album',
+            onPressed: () async {
+              final updated = await Navigator.push<Album?>(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => CreateAlbumScreen(existing: widget.album),
+                ),
+              );
+
+              if (updated != null && mounted) {
+                // возврат обновленного альбома назад
+                Navigator.pop(context, updated);
+              }
+            },
+          ),
+        ],
       ),
 
       body: Stack(
