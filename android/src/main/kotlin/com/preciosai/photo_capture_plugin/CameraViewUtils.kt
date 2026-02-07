@@ -20,6 +20,10 @@ import java.io.ByteArrayOutputStream
 import android.graphics.Rect
 import android.graphics.*
 import androidx.camera.core.ImageProxy
+import org.opencv.core.Core
+import org.opencv.core.CvType
+import org.opencv.imgproc.Imgproc
+import java.nio.ByteBuffer
 
 
 data class ZoomState(
@@ -217,5 +221,187 @@ object CameraViewUtils {
             }
         }
         return file
+    }
+
+    fun imageProxyToRotatedMat(image: ImageProxy): Mat {
+        val mat = imageProxyToMat(image)
+
+        return when (image.imageInfo.rotationDegrees) {
+            90 -> Mat().also { Core.rotate(mat, it, Core.ROTATE_90_CLOCKWISE) }
+            180 -> Mat().also { Core.rotate(mat, it, Core.ROTATE_180) }
+            270 -> Mat().also { Core.rotate(mat, it, Core.ROTATE_90_COUNTERCLOCKWISE) }
+            else -> mat
+        }
+    }
+
+    fun imageProxyToMat(image: ImageProxy): Mat {
+        return when (image.format) {
+            ImageFormat.JPEG -> jpegProxyToBgrMat(image)
+            ImageFormat.YUV_420_888 -> imageProxyToBgrMat(image) // твоя быстрая версия без JPEG
+            else -> error("Unsupported format: ${image.format}")
+        }
+    }
+
+    private fun jpegProxyToBgrMat(image: ImageProxy): Mat {
+        val buffer = image.planes[0].buffer
+        val bytes = ByteArray(buffer.remaining())
+        buffer.get(bytes)
+
+        val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+            ?: error("Bitmap decode failed")
+
+        val rgba = Mat()
+        Utils.bitmapToMat(bitmap, rgba)
+        bitmap.recycle()
+
+        val bgr = Mat()
+        Imgproc.cvtColor(rgba, bgr, Imgproc.COLOR_RGBA2BGR)
+        rgba.release()
+
+        return bgr
+    }
+
+    fun imageProxyToBgrMat(image: ImageProxy): Mat {
+        require(image.format == ImageFormat.YUV_420_888) {
+            "Unsupported format: ${image.format}. Expected YUV_420_888"
+        }
+
+        val nv21 = yuv420888ToNv21(image)
+
+        // NV21 layout: height + height/2 rows, width cols, 8UC1
+        val yuvMat = Mat(image.height + image.height / 2, image.width, CvType.CV_8UC1)
+        yuvMat.put(0, 0, nv21)
+
+        val bgrMat = Mat()
+        Imgproc.cvtColor(yuvMat, bgrMat, Imgproc.COLOR_YUV2BGR_NV21)
+
+        yuvMat.release()
+        return bgrMat
+    }
+
+
+    private fun yuv420888ToNv21(image: ImageProxy): ByteArray {
+        val yPlane = image.planes[0]
+        val uPlane = image.planes[1]
+        val vPlane = image.planes[2]
+
+        val width = image.width
+        val height = image.height
+
+        val ySize = width * height
+        val uvSize = width * height / 2
+        val out = ByteArray(ySize + uvSize)
+
+        // Y
+        copyPlane(
+            buffer = yPlane.buffer,
+            rowStride = yPlane.rowStride,
+            pixelStride = yPlane.pixelStride,
+            width = width,
+            height = height,
+            out = out,
+            outOffset = 0,
+            outPixelStride = 1
+        )
+
+        // NV21 expects interleaved VU
+        // V
+        copyPlane(
+            buffer = vPlane.buffer,
+            rowStride = vPlane.rowStride,
+            pixelStride = vPlane.pixelStride,
+            width = width / 2,
+            height = height / 2,
+            out = out,
+            outOffset = ySize,
+            outPixelStride = 2
+        )
+
+        // U
+        copyPlane(
+            buffer = uPlane.buffer,
+            rowStride = uPlane.rowStride,
+            pixelStride = uPlane.pixelStride,
+            width = width / 2,
+            height = height / 2,
+            out = out,
+            outOffset = ySize + 1,
+            outPixelStride = 2
+        )
+
+        return out
+    }
+
+    private fun copyPlane(
+        buffer: ByteBuffer,
+        rowStride: Int,
+        pixelStride: Int,
+        width: Int,
+        height: Int,
+        out: ByteArray,
+        outOffset: Int,
+        outPixelStride: Int
+    ) {
+        buffer.rewind()
+        var outputIndex = outOffset
+        val row = ByteArray(rowStride)
+
+        for (rowIndex in 0 until height) {
+            val rowStart = rowIndex * rowStride
+            buffer.position(rowStart)
+            buffer.get(row, 0, rowStride)
+
+            if (pixelStride == 1 && outPixelStride == 1) {
+                // быстрый путь (обычно Y)
+                System.arraycopy(row, 0, out, outputIndex, width)
+                outputIndex += width
+            } else {
+                // общий путь (обычно U/V)
+                var col = 0
+                var inputIndex = 0
+                while (col < width) {
+                    out[outputIndex] = row[inputIndex]
+                    outputIndex += outPixelStride
+                    inputIndex += pixelStride
+                    col++
+                }
+            }
+        }
+    }
+
+    fun matToJpegBytes(
+        mat: Mat,
+        jpegQuality: Int = 95
+    ): ByteArray {
+        require(!mat.empty()) { "Mat is empty" }
+
+        // приводим Mat к RGBA
+        val rgba = Mat()
+        when (mat.channels()) {
+            4 -> mat.copyTo(rgba)
+            3 -> Imgproc.cvtColor(mat, rgba, Imgproc.COLOR_BGR2RGBA)
+            1 -> Imgproc.cvtColor(mat, rgba, Imgproc.COLOR_GRAY2RGBA)
+            else -> error("Unsupported Mat channels: ${mat.channels()}")
+        }
+
+        // Mat -> Bitmap
+        val bitmap = Bitmap.createBitmap(
+            rgba.cols(),
+            rgba.rows(),
+            Bitmap.Config.ARGB_8888
+        )
+        Utils.matToBitmap(rgba, bitmap)
+        rgba.release()
+
+        // Bitmap -> JPEG bytes
+        val out = ByteArrayOutputStream()
+        bitmap.compress(
+            Bitmap.CompressFormat.JPEG,
+            jpegQuality.coerceIn(0, 100),
+            out
+        )
+        bitmap.recycle()
+
+        return out.toByteArray()
     }
 }

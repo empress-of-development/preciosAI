@@ -26,7 +26,7 @@ import android.content.ContentResolver
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
-
+import android.os.Environment
 
 
 class ResultImageShoot {
@@ -247,30 +247,49 @@ class ResultImageShoot {
     }
 
     fun saveMatAsJpeg(mat: Mat, resolver: ContentResolver) {
-        val bitmap = Bitmap.createBitmap(
-            mat.cols(),
-            mat.rows(),
-            Bitmap.Config.ARGB_8888
-        )
-        Utils.matToBitmap(mat, bitmap)
+        // приводим к RGBA
+        val rgba = Mat()
+        when (mat.channels()) {
+            4 -> mat.copyTo(rgba)
+            3 -> Imgproc.cvtColor(mat, rgba, Imgproc.COLOR_BGR2RGBA) // если RGB, поменять на COLOR_RGB2RGBA
+            1 -> Imgproc.cvtColor(mat, rgba, Imgproc.COLOR_GRAY2RGBA)
+            else -> error("Unsupported mat channels: ${mat.channels()}")
+        }
 
-        val filename = "HDR_${System.currentTimeMillis()}.jpg"
-        Log.d(TAG, "saveMatAsJpeg $filename")
+        val bitmap = Bitmap.createBitmap(rgba.cols(), rgba.rows(), Bitmap.Config.ARGB_8888)
+        Utils.matToBitmap(rgba, bitmap)
+        rgba.release()
+
+        val filename = "PRS_${System.currentTimeMillis()}.jpg"
         val values = ContentValues().apply {
             put(MediaStore.Images.Media.DISPLAY_NAME, filename)
             put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
-            put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/HDR")
+            put(
+                MediaStore.MediaColumns.RELATIVE_PATH,
+                Environment.DIRECTORY_PICTURES + "/PreciosAI"
+            )
             put(MediaStore.Images.Media.IS_PENDING, 1)
         }
 
-        //val resolver = context.contentResolver
-        val uri = resolver.insert(
-            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-            values
-        ) ?: return
+        val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values) ?: run {
+            bitmap.recycle()
+            return
+        }
 
-        resolver.openOutputStream(uri)?.use {
-            bitmap.compress(Bitmap.CompressFormat.JPEG, 95, it)
+        var ok = false
+        try {
+            resolver.openOutputStream(uri)?.use { os ->
+                ok = bitmap.compress(Bitmap.CompressFormat.JPEG, 95, os)
+            }
+        } catch (e: Exception) {
+            ok = false
+        } finally {
+            bitmap.recycle()
+        }
+
+        if (!ok) {
+            resolver.delete(uri, null, null)
+            return
         }
 
         values.clear()

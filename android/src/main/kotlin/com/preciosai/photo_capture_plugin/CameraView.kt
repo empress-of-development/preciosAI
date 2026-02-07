@@ -465,12 +465,12 @@ class CameraView @JvmOverloads constructor(
             ?: throw IllegalStateException("ImageCapture not initialized")
 
 
+        /*
         val contentValues = ContentValues().apply {
-            put(MediaStore.MediaColumns.DISPLAY_NAME, "IMG_${System.currentTimeMillis()}.jpg")
+            put(MediaStore.MediaColumns.DISPLAY_NAME, "PRS_${System.currentTimeMillis()}.jpg")
             put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
             put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/PreciosAI")
         }
-
         val outputOptions = ImageCapture.OutputFileOptions
             .Builder(
                 context.contentResolver,
@@ -478,6 +478,7 @@ class CameraView @JvmOverloads constructor(
                 contentValues
             )
             .build()
+         */
 
         var hdrBytes: ByteArray? = null
         if (useHDR && !hdrInProgress) {
@@ -491,6 +492,8 @@ class CameraView @JvmOverloads constructor(
             resImages.add(hdrBytes)
         }
 
+        /*
+        // Save ordinary image without additional processing
         val resImg = suspendCancellableCoroutine { cont ->
             imageCapture.takePicture(
                 outputOptions,
@@ -510,6 +513,38 @@ class CameraView @JvmOverloads constructor(
                                 resultImageShoot.saveMatAsJpeg(beigeMat, context.contentResolver)
                                 cont.resume(bytes)
                             }
+
+                        } catch (e: Exception) {
+                            cont.resumeWithException(e)
+                        }
+                    }
+
+                    override fun onError(exception: ImageCaptureException) {
+                        captureRequested = false
+                        cont.resumeWithException(exception)
+                    }
+                }
+            )
+        }
+         */
+
+        val resImg = suspendCancellableCoroutine<ByteArray> { cont ->
+            imageCapture.takePicture(
+                cameraExecutor!!,
+                object : ImageCapture.OnImageCapturedCallback() {
+                    override fun onCaptureSuccess(image: ImageProxy) {
+                        try {
+                            val mat = CameraViewUtils.imageProxyToRotatedMat(image)
+                            image.close()
+
+                            val beigeMat = resultImageShoot.stylizeBeigeLook(mat)
+                            val jpegBytes = CameraViewUtils.matToJpegBytes(beigeMat)
+
+                            resultImageShoot.saveMatAsJpeg(beigeMat, context.contentResolver)
+
+                            mat.release()
+                            beigeMat.release()
+                            cont.resume(jpegBytes)
 
                         } catch (e: Exception) {
                             cont.resumeWithException(e)
@@ -745,12 +780,14 @@ class CameraView @JvmOverloads constructor(
                                                 progressBarLottieAnimation.loadAndPlay(autoPlay = true, speed = 3f)
                                             }
                                             requestCapture()
+                                            /*
                                             val res_bitmap = previewView.bitmap
                                             bytes = CameraViewUtils.saveBitmapToGallery(
                                                 context,
                                                 res_bitmap!!,
                                                 "photo_${System.currentTimeMillis()}.jpg"
                                             )
+                                             */
                                         } catch (e: Throwable) {
                                             Log.e(TAG, "Capture failed", e)
                                         }
