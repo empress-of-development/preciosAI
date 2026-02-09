@@ -26,6 +26,7 @@ allprojects {
 apply plugin: "com.android.library"
 apply plugin: "kotlin-android"
 apply plugin: "org.jlleitschuh.gradle.ktlint"
+apply plugin: 'org.jetbrains.kotlin.plugin.serialization'
 
 def localProperties = new Properties()
 def localPropertiesFile = rootProject.file('local.properties')
@@ -127,6 +128,7 @@ android {
         implementation("androidx.appcompat:appcompat:1.7.0")
         implementation("org.opencv:opencv:4.12.0")
         implementation("androidx.concurrent:concurrent-futures-ktx:1.2.0")
+        implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0")
 
     }
 

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -28,12 +29,13 @@ class _CameraPageState extends State<CameraPage> {
   bool flashOn = false;
   bool nightModeOn = false;
   int similarityDegreeOption = 0; // 0, 1 или 2
+  Map<String, dynamic>? refPredictionsJsonMap;
 
   Future<void> init() async {
     // TODO wait for the model to initialize normally
     await Future.delayed(const Duration(milliseconds: 2000));
     if (!mounted) return;
-
+    await readJsonFromAssets();
     pickAndSendRefImage(widget.refImagePath);
   }
 
@@ -43,9 +45,14 @@ class _CameraPageState extends State<CameraPage> {
     init();
   }
 
-  Future<void> sendImageToNative(Uint8List bytes) async {
+  Future<void> readJsonFromAssets() async {
+    final String jsonString = await rootBundle.loadString('assets/ref_predictions.json');
+    refPredictionsJsonMap = jsonDecode(jsonString);
+  }
+
+  Future<void> sendImageToNative(Uint8List bytes, String? assetPredictions) async {
     try {
-      await methodChannel.invokeMethod('ref_frame_predict', {'bytes': bytes});
+      await methodChannel.invokeMethod('ref_frame_predict', {'bytes': bytes, 'assetPredictions': assetPredictions});
     } on PlatformException catch (e) {
       Logger.error('Error in reference image sending: ${e.message}');
     }
@@ -53,6 +60,7 @@ class _CameraPageState extends State<CameraPage> {
 
   Future<void> pickAndSendRefImage(String? imagePath) async {
     Uint8List? bytes;
+    String? assetPredictions;
     if (imagePath == null) {
       final picker = ImagePicker();
       final picked = await picker.pickImage(source: ImageSource.gallery);
@@ -63,11 +71,16 @@ class _CameraPageState extends State<CameraPage> {
       if (imagePath.startsWith('assets/')) {
         final data = await rootBundle.load(imagePath);
         bytes = data.buffer.asUint8List();
+
+        String keyName = imagePath.split('/').last;
+        if (refPredictionsJsonMap != null && refPredictionsJsonMap!.containsKey(keyName)) {
+          assetPredictions = jsonEncode(refPredictionsJsonMap![keyName]);
+        }
       } else {
         bytes = await File(imagePath).readAsBytes();
       }
     }
-    if (bytes != null) await sendImageToNative(bytes);
+    if (bytes != null) await sendImageToNative(bytes, assetPredictions);
   }
 
   @override

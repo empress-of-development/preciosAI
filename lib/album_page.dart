@@ -487,8 +487,8 @@ class AlbumCard extends StatelessWidget {
               children: [
                 Positioned.fill(
                   child: album.cover.source == AlbumImageSource.asset
-                      ? Image.asset(album.cover.value, fit: BoxFit.cover)
-                      : Image.file(File(album.cover.value), fit: BoxFit.cover),
+                      ? Image.asset(album.cover.value, fit: BoxFit.cover, cacheWidth: 400)
+                      : Image.file(File(album.cover.value), fit: BoxFit.cover, cacheWidth: 400),
                 ),
                 Positioned.fill(
                   child: Container(
@@ -673,10 +673,11 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(16),
                               child: img.source == AlbumImageSource.asset
-                                  ? Image.asset(img.value, fit: BoxFit.cover)
+                                  ? Image.asset(img.value, fit: BoxFit.cover, cacheWidth: 600)
                                   : Image.file(
                                       File(img.value),
                                       fit: BoxFit.cover,
+                                      cacheWidth: 600,
                                     ),
                             ),
                           ),

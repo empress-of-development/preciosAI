@@ -44,6 +44,7 @@ flutter:
     - assets/icons/
     - assets/audio/
     - assets/animation/
+    - assets/ref_predictions.json
 
 flutter_launcher_icons:
   android: true
