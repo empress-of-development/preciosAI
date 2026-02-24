@@ -46,7 +46,7 @@ class _CameraPageState extends State<CameraPage> {
   }
 
   Future<void> readJsonFromAssets() async {
-    final String jsonString = await rootBundle.loadString('assets/ref_predictions.json');
+    final String jsonString = await rootBundle.loadString('assets/gallery_images/ref_predictions.json');
     refPredictionsJsonMap = jsonDecode(jsonString);
   }
 

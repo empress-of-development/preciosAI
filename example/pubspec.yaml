@@ -35,17 +35,19 @@ flutter:
   uses-material-design: true
 
   assets:
-    - assets/logo_my.png
+    - assets/logo.png
     - assets/models/
     - assets/home_screen.mp4
     - assets/gallery_images/full_body/
     - assets/gallery_images/medium_shot/
     - assets/gallery_images/portrait/
+    - assets/gallery_images/ref_predictions.json
     - assets/icons/
     - assets/audio/
     - assets/animation/
-    - assets/ref_predictions.json
 
 flutter_launcher_icons:
-  android: true
-  image_path: "assets/logo_my.png"
+  android: "ic_launcher"
+  image_path: "assets/logo.png"
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: "assets/logo.png"
