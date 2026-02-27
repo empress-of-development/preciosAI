@@ -53,14 +53,8 @@ object CameraViewUtils {
         return mat
     }
 
-    fun loadLabels(context: Context, modelPath: String): List<String> {
-        val loadedLabels = YOLOFileUtils.loadLabelsFromAppendedZip(context, modelPath)
-        if (loadedLabels != null) {
-            Log.d(TAG, "Labels loaded from model metadata: ${loadedLabels.size} classes")
-            return loadedLabels
-        }
-
-        Log.d(TAG, "Using COCO classes as fallback")
+    fun loadLabels(): List<String> {
+        // TODO костыль
         return listOf(
             "person", "bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck", "boat",
             "traffic light", "fire hydrant", "stop sign", "parking meter", "bench", "bird", "cat", "dog",

@@ -24,10 +24,29 @@ abstract class BasePredictor {
 
     protected fun updateTiming() {
         val now = System.nanoTime()
-        val dt = (now - t0) / 1e9
-        t2 = 0.05 * dt + 0.95 * t2
-        t4 = 0.05 * ((now - t3) / 1e9) + 0.95 * t4
+
+        // first call / not initialized yet
+        if (t3 == 0L) {
+            t3 = now
+            if (t0 == 0L) t0 = now
+            return
+        }
+
+        val dtFromT0 = (now - t0) * NS_TO_S
+        val dtBetweenCalls = (now - t3) * NS_TO_S
+
+        t2 = ema(dtFromT0, t2, ALPHA)
+        t4 = ema(dtBetweenCalls, t4, ALPHA)
+
         t3 = now
+    }
+
+    private fun ema(x: Double, prev: Double, alpha: Double): Double =
+        alpha * x + (1.0 - alpha) * prev
+
+    private companion object {
+        const val ALPHA = 0.05
+        const val NS_TO_S = 1e-9
     }
 
     abstract fun predict(bitmap: Bitmap, origWidth: Int, origHeight: Int, rotateForCamera: Boolean = false, isLandscape: Boolean = false): InstanceObj

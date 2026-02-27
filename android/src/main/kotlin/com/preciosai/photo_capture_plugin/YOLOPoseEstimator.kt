@@ -3,6 +3,14 @@ package com.preciosai.photo_capture_plugin
 import android.content.Context
 import android.graphics.*
 import android.util.Log
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+import java.nio.MappedByteBuffer
+import java.io.File
+import java.io.FileOutputStream
+import kotlin.math.max
+import kotlin.math.min
+import org.opencv.core.Size
 import org.tensorflow.lite.DataType
 import org.tensorflow.lite.Interpreter
 import org.tensorflow.lite.gpu.GpuDelegate
@@ -15,14 +23,6 @@ import org.tensorflow.lite.support.image.ops.ResizeOp
 import org.tensorflow.lite.support.image.ops.Rot90Op
 import org.tensorflow.lite.support.metadata.MetadataExtractor
 import org.yaml.snakeyaml.Yaml
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
-import java.nio.MappedByteBuffer
-import kotlin.math.max
-import kotlin.math.min
-import org.opencv.core.Size
-import java.io.File
-import java.io.FileOutputStream
 
 
 class YOLOPoseEstimator(
@@ -32,126 +32,77 @@ class YOLOPoseEstimator(
     private val useGpu: Boolean = true,
     override var confidenceThreshold: Float = 0.65f,
     override var iouThreshold: Float = 0.45f,
-    val customOptions: Interpreter.Options? = null
 ) : BasePredictor() {
 
     companion object {
         private const val TAG = "YOLOPoseEstimator"
         private const val numItemsThreshold = 10
-
-        // xywh(4) + conf(1) + keypoints(17*3=51) = 56
-        private const val OUTPUT_FEATURES = 56
-        private const val KEYPOINTS_COUNT = 17
-    }
-
-    private val interpreterOptions = (customOptions ?: Interpreter.Options()).apply {
-        if (customOptions == null) {
-            setNumThreads(Runtime.getRuntime().availableProcessors())
-        }
-        
-        if (useGpu) {
-            try {
-                addDelegate(GpuDelegate())
-                Log.d(TAG, "GPU delegate is used.")
-            } catch (e: Exception) {
-                Log.e(TAG, "GPU delegate error: ${e.message}")
-            }
-        }
+        private const val KEYPOINTS_NUMBER = 17
     }
 
     private lateinit var imageProcessorCameraPortrait: ImageProcessor
     private lateinit var imageProcessorCameraPortraitFront: ImageProcessor
-    private lateinit var imageProcessorCameraLandscape: ImageProcessor
     private lateinit var imageProcessorSingleImage: ImageProcessor
     
-    // Reuse ByteBuffer for input to reduce allocations
     private lateinit var inputBuffer: ByteBuffer
-    // Reuse output arrays to reduce allocations
     private lateinit var outputArray: Array<Array<FloatArray>>
-    
     private var batchSize = 0
     private var numAnchors = 0
 
     init {
         val modelBuffer = loadModelFromFlutterAsset(context, "assets/models/$modelPath")
 
-        var loadedLabels = YOLOFileUtils.loadLabelsFromAppendedZip(context, modelPath)
-        var labelsWereLoaded = loadedLabels != null
+        interpreter = Interpreter(
+            modelBuffer,
+            Interpreter.Options().apply {
+                setNumThreads(Runtime.getRuntime().availableProcessors())
 
-        if (loadedLabels != null) {
-            this.labels = loadedLabels!! // Use labels from appended ZIP
-            Log.i(TAG, "Labels successfully loaded from appended ZIP.")
-        } else {
-            Log.w(TAG, "Could not load labels from appended ZIP, trying FlatBuffers metadata...")
-            // Try FlatBuffers as a fallback
-            if (loadLabelsFromFlatbuffers(modelBuffer)) {
-                labelsWereLoaded = true
-                Log.i(TAG, "Labels successfully loaded from FlatBuffers metadata.")
+                if (useGpu) {
+                    try {
+                        addDelegate(GpuDelegate())
+                        Log.d(TAG, "GPU is used!!!")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "GPU error: ${e.message}")
+                    }
+                }
             }
-        }
-
-        if (!labelsWereLoaded) {
-            Log.w(TAG, "No embedded labels found from appended ZIP or FlatBuffers. Using labels passed via constructor (if any) or an empty list.")
-            if (this.labels.isEmpty()) {
-                Log.w(TAG, "Warning: No labels loaded and no labels provided via constructor. Detections might lack class names.")
-            }
-        }
-
-        interpreter = Interpreter(modelBuffer, interpreterOptions)
+        )
         interpreter.allocateTensors()
-        Log.d(TAG, "TFLite model loaded and tensors allocated")
+        Log.d(TAG, "TFLite YOLO Pose model loaded")
 
         val inputShape = interpreter.getInputTensor(0).shape()
-        val inHeight = inputShape[1]
-        val inWidth = inputShape[2]
-        modelInputSize = Pair(inWidth, inHeight)
+        val inputHeight = inputShape[1]
+        val inputWidth = inputShape[2]
+        modelInputSize = Pair(inputWidth, inputHeight)
         
         val outputShape = interpreter.getOutputTensor(0).shape()
         batchSize = outputShape[0]           // 1
         val outFeatures = outputShape[1]     // 56
-        numAnchors = outputShape[2]          // 2100 etc.
-        require(outFeatures == OUTPUT_FEATURES) {
-            "Unexpected output feature size. Expected=$OUTPUT_FEATURES, Actual=$outFeatures"
-        }
-        
+        numAnchors = outputShape[2]          // 2100
+
         outputArray = Array(batchSize) {
             Array(outFeatures) { FloatArray(numAnchors) }
         }
         
-        val inputBytes = 1 * inHeight * inWidth * 3 * 4 // FLOAT32 is 4 bytes
+        val inputBytes = 1 * inputHeight * inputWidth * 3 * 4 // float32 - 4
         inputBuffer = ByteBuffer.allocateDirect(inputBytes).apply {
             order(java.nio.ByteOrder.nativeOrder())
         }
 
-        // For camera feed in portrait mode (with rotation)
-        imageProcessorCameraPortrait = ImageProcessor.Builder()
-            .add(Rot90Op(3))  // 270-degree rotation for back camera
-            .add(ResizeOp(inHeight, inWidth, ResizeOp.ResizeMethod.BILINEAR))
-            .add(NormalizeOp(0f, 255f))
-            .add(CastOp(DataType.FLOAT32))
-            .build()
-            
-        // For front camera in portrait mode (90-degree rotation to the right)
-        imageProcessorCameraPortraitFront = ImageProcessor.Builder()
-            .add(Rot90Op(1))  // 90-degree rotation to the right for front camera
-            .add(ResizeOp(inHeight, inWidth, ResizeOp.ResizeMethod.BILINEAR))
-            .add(NormalizeOp(0f, 255f))
-            .add(CastOp(DataType.FLOAT32))
-            .build()
-            
-        // For camera feed in landscape mode (no rotation)
-        imageProcessorCameraLandscape = ImageProcessor.Builder()
-            .add(ResizeOp(inHeight, inWidth, ResizeOp.ResizeMethod.BILINEAR))
-            .add(NormalizeOp(0f, 255f))
-            .add(CastOp(DataType.FLOAT32))
-            .build()
-            
-        // For single images (no rotation needed)
-        imageProcessorSingleImage = ImageProcessor.Builder()
-            .add(ResizeOp(inHeight, inWidth, ResizeOp.ResizeMethod.BILINEAR))
-            .add(NormalizeOp(0f, 255f))
-            .add(CastOp(DataType.FLOAT32))
-            .build()
+        fun createProcessor(rotationK: Int? = null) =
+            ImageProcessor.Builder().apply {
+                rotationK?.let { add(Rot90Op(it)) }
+                add(ResizeOp(inputHeight, inputWidth, ResizeOp.ResizeMethod.BILINEAR))
+                add(NormalizeOp(0f, 255f))
+                add(CastOp(DataType.FLOAT32))
+            }.build()
+
+        // vertical image from back camera
+        imageProcessorCameraPortrait = createProcessor(3)
+        // vertical image from font camera
+        imageProcessorCameraPortraitFront = createProcessor(1)
+        // basic version - without rotation or landscape
+        imageProcessorSingleImage = createProcessor()
     }
 
     private fun loadModelFromFlutterAsset(context: Context, assetName: String): java.nio.MappedByteBuffer {
@@ -168,26 +119,18 @@ class YOLOPoseEstimator(
         tensorImage.load(bitmap)
 
         val processedImage = if (rotateForCamera) {
-            if (isLandscape) {
-                imageProcessorCameraLandscape.process(tensorImage)
-            } else {
-                if (isFrontCamera) {
-                    imageProcessorCameraPortraitFront.process(tensorImage)
-                } else {
-                    imageProcessorCameraPortrait.process(tensorImage)
-                }
+            if (isLandscape) imageProcessorSingleImage.process(tensorImage)
+            else {
+                if (isFrontCamera) imageProcessorCameraPortraitFront.process(tensorImage)
+                else imageProcessorCameraPortrait.process(tensorImage)
             }
-        } else {
-            // No rotation for single image
-            imageProcessorSingleImage.process(tensorImage)
-        }
+        } else imageProcessorSingleImage.process(tensorImage)
         
         inputBuffer.clear()
         inputBuffer.put(processedImage.buffer)
         inputBuffer.rewind()
 
         interpreter.run(inputBuffer, outputArray)
-        // Update processing time measurement
         updateTiming()
 
         val predictions = postProcessPose(
@@ -202,7 +145,7 @@ class YOLOPoseEstimator(
         return InstanceObj(
             imageShape = Size(origWidth.toDouble(), origHeight.toDouble()),
             objects = predictions.take(numItemsThreshold),
-            speed = t2,   // Measurement values in milliseconds etc. depend on BasePredictor implementation
+            speed = t2,
             fps = if (t4 > 0) (1.0 / t4) else 0.0,
         )
     }
@@ -216,95 +159,95 @@ class YOLOPoseEstimator(
         origHeight: Int
     ): List<PredictionObj> {
 
-        val predictions = mutableListOf<PredictionObj>()
-
         val (modelW, modelH) = modelInputSize
-        val scaleX = origWidth.toFloat() / modelW
-        val scaleY = origHeight.toFloat() / modelH
+        val modelWf = modelW.toFloat()
+        val modelHf = modelH.toFloat()
 
-        for (j in 0 until numAnchors) {
-            val rawX = features[0][j]
-            val rawY = features[1][j]
-            val rawW = features[2][j]
-            val rawH = features[3][j]
-            val conf = features[4][j]
+        val scaleX = origWidth / modelWf
+        val scaleY = origHeight / modelHf
 
-            if (conf < confidenceThreshold) continue
+        fun anchor(row: Int, j: Int) = features[row][j]
 
-            val xScaled = rawX * modelW
-            val yScaled = rawY * modelH
-            val wScaled = rawW * modelW
-            val hScaled = rawH * modelH
+        fun toModelPx(x: Float, y: Float) = x * modelWf to y * modelHf
 
-            val left   = xScaled - wScaled / 2f
-            val top    = yScaled - hScaled / 2f
-            val right  = xScaled + wScaled / 2f
-            val bottom = yScaled + hScaled / 2f
+        fun bboxFromCenter(x: Float, y: Float, w: Float, h: Float): RectF {
+            val hw = w / 2f
+            val hh = h / 2f
+            return RectF(x - hw, y - hh, x + hw, y + hh)
+        }
 
-            val normBox = RectF(left / modelW, top / modelH, right / modelW, bottom / modelH)
+        val predictions = (0 until numAnchors)
+            .asSequence()
+            .mapNotNull { j ->
+                val conf = anchor(4, j)
+                if (conf < confidenceThreshold) return@mapNotNull null
 
-            val rectF = RectF(
-                left   * scaleX,
-                top    * scaleY,
-                right  * scaleX,
-                bottom * scaleY
-            )
+                val (cx, cy) = toModelPx(anchor(0, j), anchor(1, j))
+                val bw = anchor(2, j) * modelWf
+                val bh = anchor(3, j) * modelHf
 
-            val kpArray = mutableListOf<Pair<Float, Float>>()
-            val kpConfArray = mutableListOf<Float>()
-            for (k in 0 until KEYPOINTS_COUNT) {
-                val rawKx = features[5 + k * 3][j]
-                val rawKy = features[5 + k * 3 + 1][j]
-                val kpC   = features[5 + k * 3 + 2][j]
+                val boxModel = bboxFromCenter(cx, cy, bw, bh)
 
-                // Check if values are already in pixel coordinates (>1) or normalized (0-1)
-                val isNormalized = rawKx <= 1.0f && rawKy <= 1.0f
-                
-                val finalKx: Float
-                val finalKy: Float
-                
-                if (isNormalized) {
-                    val kxScaled = rawKx * modelW
-                    val kyScaled = rawKy * modelH
-                    finalKx = kxScaled * scaleX
-                    finalKy = kyScaled * scaleY
-                } else {
-                    finalKx = rawKx * scaleX
-                    finalKy = rawKy * scaleY
+                val boxNorm = RectF(
+                    boxModel.left / modelWf,
+                    boxModel.top / modelHf,
+                    boxModel.right / modelWf,
+                    boxModel.bottom / modelHf
+                )
+
+                val boxOrig = RectF(
+                    boxModel.left * scaleX,
+                    boxModel.top * scaleY,
+                    boxModel.right * scaleX,
+                    boxModel.bottom * scaleY
+                )
+
+                val xy = ArrayList<Pair<Float, Float>>(KEYPOINTS_NUMBER)
+                val scores = ArrayList<Float>(KEYPOINTS_NUMBER)
+                val xyn = ArrayList<Pair<Float, Float>>(KEYPOINTS_NUMBER)
+
+                for (k in 0 until KEYPOINTS_NUMBER) {
+                    val base = 5 + k * 3
+
+                    val rawKx = anchor(base, j)
+                    val rawKy = anchor(base + 1, j)
+                    val kpC = anchor(base + 2, j)
+
+                    val (px, py) =
+                        if (rawKx <= 1f && rawKy <= 1f) {
+                            val mx = rawKx * modelWf
+                            val my = rawKy * modelHf
+                            mx * scaleX to my * scaleY
+                        } else {
+                            rawKx * scaleX to rawKy * scaleY
+                        }
+
+                    xy.add(px to py)
+                    scores.add(kpC)
+                    xyn.add(px / origWidth to py / origHeight)
                 }
 
-                kpArray.add(finalKx to finalKy)
-                kpConfArray.add(kpC)
-            }
-
-            val xynList = kpArray.map { (fx, fy) ->
-                (fx / origWidth) to (fy / origHeight)
-            }
-            
-            predictions.add(
                 PredictionObj(
                     bbox = BBox(
                         clsIndex = 0,
                         label = "person",
                         score = conf,
-                        xywh = rectF,
-                        xywhn = normBox
+                        xywh = boxOrig,
+                        xywhn = boxNorm
                     ),
                     keypoints = Keypoints(
-                        xyn = xynList,
-                        xy = kpArray,
-                        scores = kpConfArray
+                        xyn = xyn,
+                        xy = xy,
+                        scores = scores
                     ),
                     label = "person",
                     score = conf
                 )
-            )
-        }
+            }
+            .toList()
 
-        val finalDetections = nmsPredictionObj(predictions, iouThreshold)
-        return finalDetections
+        return nmsPredictionObj(predictions, iouThreshold)
     }
-
 
     private fun nmsPredictionObj(
         detections: List<PredictionObj>,
@@ -339,46 +282,11 @@ class YOLOPoseEstimator(
     }
 
     private fun iou(a: RectF, b: RectF): Float {
-        val interLeft = max(a.left, b.left)
-        val interTop = max(a.top, b.top)
-        val interRight = min(a.right, b.right)
-        val interBottom = min(a.bottom, b.bottom)
-        val interW = max(0f, interRight - interLeft)
-        val interH = max(0f, interBottom - interTop)
-        val interArea = interW * interH
-        val unionArea = a.width() * a.height() + b.width() * b.height() - interArea
-        return if (unionArea <= 0f) 0f else (interArea / unionArea)
-    }
+        val interArea =
+            (min(a.right, b.right) - max(a.left, b.left)).coerceAtLeast(0f) *
+                    (min(a.bottom, b.bottom) - max(a.top, b.top)).coerceAtLeast(0f)
 
-    private fun loadLabelsFromFlatbuffers(buf: MappedByteBuffer): Boolean = try {
-        val extractor = MetadataExtractor(buf)
-        val files = extractor.associatedFileNames
-        if (!files.isNullOrEmpty()) {
-            for (fileName in files) {
-                Log.d(TAG, "Found associated file: $fileName")
-                extractor.getAssociatedFile(fileName)?.use { stream ->
-                    val fileString = String(stream.readBytes(), Charsets.UTF_8)
-                    Log.d(TAG, "Associated file contents:\n$fileString")
-
-                    val yaml = Yaml()
-                    @Suppress("UNCHECKED_CAST")
-                    val data = yaml.load<Map<String, Any>>(fileString)
-                    if (data != null && data.containsKey("names")) {
-                        val namesMap = data["names"] as? Map<Int, String>
-                        if (namesMap != null) {
-                            labels = namesMap.values.toList()
-                            Log.d(TAG, "Loaded labels from metadata: $labels")
-                            return true
-                        }
-                    }
-                }
-            }
-        } else {
-            Log.d(TAG, "No associated files found in the metadata.")
-        }
-        false
-    } catch (e: Exception) {
-        Log.e(TAG, "Failed to extract metadata: ${e.message}")
-        false
+        val union = a.width() * a.height() + b.width() * b.height() - interArea
+        return if (union > 0f) interArea / union else 0f
     }
 }

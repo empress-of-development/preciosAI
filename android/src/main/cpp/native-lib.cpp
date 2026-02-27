@@ -1,5 +1,3 @@
-// Ultralytics 🚀 AGPL-3.0 License - https://ultralytics.com/license
-
 // app/src/main/cpp/native-lib.cpp
 
 #include <jni.h>
@@ -7,9 +5,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cfloat>
-#include <cstdlib>
 
-// Custom rectangle structure
 struct Rect {
     float x;
     float y;
@@ -17,88 +13,72 @@ struct Rect {
     float height;
 };
 
-// Detected object structure
-struct DetectedObject {
+struct Detection {
     Rect rect;
     int index;
     float confidence;
 };
 
-// Quicksort for descending order
-static void qsort_descent_inplace(std::vector<DetectedObject>& objects, int left, int right) {
-    int i = left;
-    int j = right;
-    float p = objects[(left + right) / 2].confidence;
-    while (i <= j) {
-        while (objects[i].confidence > p) i++;
-        while (objects[j].confidence < p) j--;
-        if (i <= j) {
-            std::swap(objects[i], objects[j]);
-            i++; j--;
-        }
-    }
-    if (left < j) qsort_descent_inplace(objects, left, j);
-    if (i < right) qsort_descent_inplace(objects, i, right);
+static inline float intersection_area(const Rect& a, const Rect& b) {
+    const float left   = std::max(a.x, b.x);
+    const float top    = std::max(a.y, b.y);
+    const float right  = std::min(a.x + a.width,  b.x + b.width);
+    const float bottom = std::min(a.y + a.height, b.y + b.height);
+
+    const float w = right  - left;
+    const float h = bottom - top;
+
+    if (w <= 0.0f || h <= 0.0f) return 0.0f;
+    return w * h;
 }
 
-static void qsort_descent_inplace(std::vector<DetectedObject>& objects) {
-    if (!objects.empty())
-        qsort_descent_inplace(objects, 0, objects.size() - 1);
-}
-
-// Calculate intersection area (common area of two rectangles)
-static float intersection_area(const DetectedObject &a, const DetectedObject &b) {
-    float ax1 = a.rect.x;
-    float ay1 = a.rect.y;
-    float ax2 = a.rect.x + a.rect.width;
-    float ay2 = a.rect.y + a.rect.height;
-    float bx1 = b.rect.x;
-    float by1 = b.rect.y;
-    float bx2 = b.rect.x + b.rect.width;
-    float by2 = b.rect.y + b.rect.height;
-
-    float interX1 = std::max(ax1, bx1);
-    float interY1 = std::max(ay1, by1);
-    float interX2 = std::min(ax2, bx2);
-    float interY2 = std::min(ay2, by2);
-
-    float interWidth = std::max(0.0f, interX2 - interX1);
-    float interHeight = std::max(0.0f, interY2 - interY1);
-
-    return interWidth * interHeight;
-}
-
-// Non-Maximum Suppression (NMS) implementation (for already sorted proposals)
-static void nms_sorted_bboxes(const std::vector<DetectedObject>& objects, std::vector<int>& picked, float nms_threshold) {
+// NMS для отсортированных по confidence объектов (по убыванию)
+static void nms(const std::vector<Detection>& objects,
+                std::vector<int>& picked,
+                float iou_threshold)
+{
     picked.clear();
-    int n = objects.size();
+    const int n = static_cast<int>(objects.size());
+    if (n == 0) return;
+
     std::vector<float> areas(n);
-    for (int i = 0; i < n; i++) {
-        areas[i] = objects[i].rect.width * objects[i].rect.height;
+    for (int i = 0; i < n; ++i) {
+        const Rect& r = objects[i].rect;
+        areas[i] = r.width * r.height;
     }
-    for (int i = 0; i < n; i++) {
-        const DetectedObject &a = objects[i];
+
+    picked.reserve(n);
+
+    for (int i = 0; i < n; ++i) {
+        const Rect& a = objects[i].rect;
+        const float areaA = areas[i];
+
         bool keep = true;
-        for (int j = 0; j < (int)picked.size(); j++) {
-            const DetectedObject &b = objects[picked[j]];
-            float inter_area = intersection_area(a, b);
-            float union_area = areas[i] + areas[picked[j]] - inter_area;
-            if (union_area > 0 && (inter_area / union_area > nms_threshold)) {
+
+        for (int j : picked) {
+            const Rect& b = objects[j].rect;
+
+            const float inter = intersection_area(a, b);
+            if (inter <= 0.0f) continue;
+
+            const float uni = areaA + areas[j] - inter;
+            if (uni <= 0.0f) continue;
+
+            if (inter / uni > iou_threshold) {
                 keep = false;
                 break;
             }
         }
-        if (keep)
-            picked.push_back(i);
+
+        if (keep) picked.push_back(i);
     }
 }
-
 
 extern "C"
 JNIEXPORT jobjectArray JNICALL
 Java_com_preciosai_photo_1capture_1plugin_MMPoseEstimator_postprocess(
         JNIEnv *env,
-        jobject thiz,
+        jobject /*thiz*/,
         jobjectArray recognitions,
         jint w, jint h,
         jfloat confidence_threshold,
@@ -106,85 +86,179 @@ Java_com_preciosai_photo_1capture_1plugin_MMPoseEstimator_postprocess(
         jint num_items_threshold,
         jint num_classes) {
 
-    // Convert 2D array to C++ vector
-    std::vector<std::vector<float>> vec;
-    vec.resize(h, std::vector<float>(w, 0.0f));
-    for (int i = 0; i < h; ++i) {
-        jfloatArray row = (jfloatArray) env->GetObjectArrayElement(recognitions, i);
-        jfloat* rowData = env->GetFloatArrayElements(row, JNI_FALSE);
-        for (int j = 0; j < w; ++j) {
-            vec[i][j] = rowData[j];
-        }
-        env->ReleaseFloatArrayElements(row, rowData, JNI_ABORT);
-        env->DeleteLocalRef(row);
+    if (!recognitions || w <= 0 || h <= 0 || num_classes <= 0) return nullptr;
+    if (h < 4 + num_classes) return nullptr;
+
+    const jsize rows = env->GetArrayLength(recognitions);
+    if (rows < 4 + num_classes) return nullptr;
+
+    jfloatArray row_cx = (jfloatArray)env->GetObjectArrayElement(recognitions, 0);
+    jfloatArray row_cy = (jfloatArray)env->GetObjectArrayElement(recognitions, 1);
+    jfloatArray row_bw = (jfloatArray)env->GetObjectArrayElement(recognitions, 2);
+    jfloatArray row_bh = (jfloatArray)env->GetObjectArrayElement(recognitions, 3);
+
+    if (!row_cx || !row_cy || !row_bw || !row_bh) {
+        if (row_cx) env->DeleteLocalRef(row_cx);
+        if (row_cy) env->DeleteLocalRef(row_cy);
+        if (row_bw) env->DeleteLocalRef(row_bw);
+        if (row_bh) env->DeleteLocalRef(row_bh);
+        return nullptr;
     }
 
-    // Extract box candidates (proposals)
-    std::vector<DetectedObject> proposals;
+    const jsize len0 = env->GetArrayLength(row_cx);
+    const jsize len1 = env->GetArrayLength(row_cy);
+    const jsize len2 = env->GetArrayLength(row_bw);
+    const jsize len3 = env->GetArrayLength(row_bh);
+    if (len0 < w || len1 < w || len2 < w || len3 < w) {
+        env->DeleteLocalRef(row_cx);
+        env->DeleteLocalRef(row_cy);
+        env->DeleteLocalRef(row_bw);
+        env->DeleteLocalRef(row_bh);
+        return nullptr;
+    }
+
+    jboolean isCopy = JNI_FALSE;
+    jfloat* cx = env->GetFloatArrayElements(row_cx, &isCopy);
+    jfloat* cy = env->GetFloatArrayElements(row_cy, &isCopy);
+    jfloat* bw = env->GetFloatArrayElements(row_bw, &isCopy);
+    jfloat* bh = env->GetFloatArrayElements(row_bh, &isCopy);
+
+    if (!cx || !cy || !bw || !bh) {
+        if (cx) env->ReleaseFloatArrayElements(row_cx, cx, JNI_ABORT);
+        if (cy) env->ReleaseFloatArrayElements(row_cy, cy, JNI_ABORT);
+        if (bw) env->ReleaseFloatArrayElements(row_bw, bw, JNI_ABORT);
+        if (bh) env->ReleaseFloatArrayElements(row_bh, bh, JNI_ABORT);
+        env->DeleteLocalRef(row_cx);
+        env->DeleteLocalRef(row_cy);
+        env->DeleteLocalRef(row_bw);
+        env->DeleteLocalRef(row_bh);
+        return nullptr;
+    }
+
+    std::vector<jfloatArray> classRows(num_classes, nullptr);
+    std::vector<jfloat*> classPtrs(num_classes, nullptr);
+
+    for (int c = 0; c < num_classes; ++c) {
+        jfloatArray row = (jfloatArray)env->GetObjectArrayElement(recognitions, 4 + c);
+        if (!row || env->GetArrayLength(row) < w) {
+            for (int k = 0; k <= c; ++k) {
+                if (classPtrs[k]) env->ReleaseFloatArrayElements(classRows[k], classPtrs[k], JNI_ABORT);
+                if (classRows[k]) env->DeleteLocalRef(classRows[k]);
+            }
+            env->ReleaseFloatArrayElements(row_cx, cx, JNI_ABORT);
+            env->ReleaseFloatArrayElements(row_cy, cy, JNI_ABORT);
+            env->ReleaseFloatArrayElements(row_bw, bw, JNI_ABORT);
+            env->ReleaseFloatArrayElements(row_bh, bh, JNI_ABORT);
+            env->DeleteLocalRef(row_cx);
+            env->DeleteLocalRef(row_cy);
+            env->DeleteLocalRef(row_bw);
+            env->DeleteLocalRef(row_bh);
+            return nullptr;
+        }
+        classRows[c] = row;
+        classPtrs[c] = env->GetFloatArrayElements(row, &isCopy);
+        if (!classPtrs[c]) {
+            for (int k = 0; k <= c; ++k) {
+                if (classPtrs[k]) env->ReleaseFloatArrayElements(classRows[k], classPtrs[k], JNI_ABORT);
+                if (classRows[k]) env->DeleteLocalRef(classRows[k]);
+            }
+            env->ReleaseFloatArrayElements(row_cx, cx, JNI_ABORT);
+            env->ReleaseFloatArrayElements(row_cy, cy, JNI_ABORT);
+            env->ReleaseFloatArrayElements(row_bw, bw, JNI_ABORT);
+            env->ReleaseFloatArrayElements(row_bh, bh, JNI_ABORT);
+            env->DeleteLocalRef(row_cx);
+            env->DeleteLocalRef(row_cy);
+            env->DeleteLocalRef(row_bw);
+            env->DeleteLocalRef(row_bh);
+            return nullptr;
+        }
+    }
+
+    std::vector<Detection> proposals;
+    proposals.reserve(static_cast<size_t>(w));
+
     for (int i = 0; i < w; ++i) {
-        int class_index = 0;
-        float class_score = -FLT_MAX;
-        // Get each class score (assuming class scores start from the 4th index)
-        for (int c = 0; c < num_classes; c++) {
-            float score = vec[c + 4][i];
-            if (score > class_score) {
-                class_score = score;
-                class_index = c;
+        int bestClass = 0;
+        float bestScore = -FLT_MAX;
+
+        for (int c = 0; c < num_classes; ++c) {
+            const float s = classPtrs[c][i];
+            if (s > bestScore) {
+                bestScore = s;
+                bestClass = c;
             }
         }
-        // Only add to candidates if score exceeds threshold
-        if (class_score > confidence_threshold) {
-            // Get center coordinates and width/height, convert to top-left coordinates
-            float cx = vec[0][i];
-            float cy = vec[1][i];
-            float w_box = vec[2][i];
-            float h_box = vec[3][i];
 
-            DetectedObject obj;
-            obj.rect.x = cx - w_box / 2;
-            obj.rect.y = cy - h_box / 2;
+        if (bestScore > confidence_threshold) {
+            const float w_box = bw[i];
+            const float h_box = bh[i];
+
+            Detection obj;
+            obj.rect.x = cx[i] - 0.5f * w_box;
+            obj.rect.y = cy[i] - 0.5f * h_box;
             obj.rect.width = w_box;
             obj.rect.height = h_box;
-            obj.index = class_index;
-            obj.confidence = class_score;
+            obj.index = bestClass;
+            obj.confidence = bestScore;
 
             proposals.push_back(obj);
         }
     }
 
-    // Sort by score
-    qsort_descent_inplace(proposals);
+    // Освобождаем входные массивы как можно раньше
+    for (int c = 0; c < num_classes; ++c) {
+        env->ReleaseFloatArrayElements(classRows[c], classPtrs[c], JNI_ABORT);
+        env->DeleteLocalRef(classRows[c]);
+    }
 
-    // Apply Non-Maximum Suppression (NMS)
+    env->ReleaseFloatArrayElements(row_cx, cx, JNI_ABORT);
+    env->ReleaseFloatArrayElements(row_cy, cy, JNI_ABORT);
+    env->ReleaseFloatArrayElements(row_bw, bw, JNI_ABORT);
+    env->ReleaseFloatArrayElements(row_bh, bh, JNI_ABORT);
+
+    env->DeleteLocalRef(row_cx);
+    env->DeleteLocalRef(row_cy);
+    env->DeleteLocalRef(row_bw);
+    env->DeleteLocalRef(row_bh);
+
+    // Сортировка по confidence (убывание)
+    std::sort(proposals.begin(), proposals.end(),
+              [](const Detection& a, const Detection& b) {
+                  return a.confidence > b.confidence;
+              });
+
+    // NMS
     std::vector<int> picked;
-    nms_sorted_bboxes(proposals, picked, iou_threshold);
+    nms(proposals, picked, iou_threshold);
 
-    int count = std::min((int)picked.size(), (int)num_items_threshold);
-    std::vector<DetectedObject> objects(count);
-    for (int i = 0; i < count; i++) {
-        objects[i] = proposals[picked[i]];
-        // No additional conversion needed here for the Java version
-    }
+    const int maxCount = std::max(0, static_cast<int>(num_items_threshold));
+    const int count = std::min(static_cast<int>(picked.size()), maxCount);
 
-    // Return results as 2D array (each element: [x, y, width, height, confidence, class_index])
+    // Подготовка JNI-результата
     jclass floatArrayCls = env->FindClass("[F");
-    if (floatArrayCls == NULL) return NULL;
-    jobjectArray objArray = env->NewObjectArray(objects.size(), floatArrayCls, NULL);
-    if (objArray == NULL) return NULL;
-    for (int i = 0; i < objects.size(); i++) {
-        float box[6] = {
-                objects[i].rect.x,
-                objects[i].rect.y,
-                objects[i].rect.width,
-                objects[i].rect.height,
-                objects[i].confidence,
-                static_cast<float>(objects[i].index)
+    if (!floatArrayCls) return nullptr;
+
+    jobjectArray out = env->NewObjectArray(count, floatArrayCls, nullptr);
+    if (!out) return nullptr;
+
+    for (int k = 0; k < count; ++k) {
+        const Detection& o = proposals[picked[k]];
+        jfloat box[6] = {
+                o.rect.x,
+                o.rect.y,
+                o.rect.width,
+                o.rect.height,
+                o.confidence,
+                static_cast<jfloat>(o.index)
         };
-        jfloatArray iarr = env->NewFloatArray(6);
-        if (iarr == NULL) return NULL;
-        env->SetFloatArrayRegion(iarr, 0, 6, box);
-        env->SetObjectArrayElement(objArray, i, iarr);
-        env->DeleteLocalRef(iarr);
+
+        jfloatArray arr = env->NewFloatArray(6);
+        if (!arr) return nullptr;
+
+        env->SetFloatArrayRegion(arr, 0, 6, box);
+        env->SetObjectArrayElement(out, k, arr);
+        env->DeleteLocalRef(arr);
     }
-    return objArray;
+
+    return out;
 }

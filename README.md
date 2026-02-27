@@ -1,6 +1,6 @@
 <div align="center">
-  <img src="example/assets/icons/logo_violet.png" width="800"/>
-  <p style="margin: 0; font-size: 400%;">
+  <img src="example/assets/icons/logo_violet.png" width="600"/>
+  <p style="margin: 0; font-size: 200%;">
     Real-time photography app powered by AI
   </p>
 </div>

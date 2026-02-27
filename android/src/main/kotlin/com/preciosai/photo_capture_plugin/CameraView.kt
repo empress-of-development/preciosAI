@@ -221,7 +221,7 @@ class CameraView @JvmOverloads constructor(
                 predictor = YOLOPoseEstimator(
                     context,
                     modelPath,
-                    CameraViewUtils.loadLabels(context, modelPath),
+                    CameraViewUtils.loadLabels(),
                     useGpu = true
                 )
             }
