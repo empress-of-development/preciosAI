@@ -106,9 +106,6 @@ android {
         implementation("com.google.ai.edge.litert:litert-gpu:1.2.0")
         implementation('com.google.ai.edge.litert:litert-support-api:1.2.0')
         implementation('com.google.ai.edge.litert:litert-metadata:1.2.0')
-        testImplementation("junit:junit:4.13.2")
-        androidTestImplementation("androidx.test.ext:junit:1.1.5")
-        androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
         implementation("org.yaml:snakeyaml:1.29")
 
         implementation("androidx.camera:camera-core:1.5.2")
@@ -119,9 +116,6 @@ android {
 
         implementation("androidx.core:core-ktx:1.10.1")
         implementation("androidx.appcompat:appcompat:1.6.1")
-        
-        testImplementation("org.jetbrains.kotlin:kotlin-test")
-        testImplementation("org.mockito:mockito-core:5.0.0")
 
         implementation("org.pytorch:executorch-android:0.7.0")
         implementation("com.airbnb.android:lottie:6.7.1")
@@ -130,18 +124,6 @@ android {
         implementation("androidx.concurrent:concurrent-futures-ktx:1.2.0")
         implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0")
 
-    }
-
-    testOptions {
-        unitTests.all {
-            useJUnitPlatform()
-
-            testLogging {
-               events "passed", "skipped", "failed", "standardOut", "standardError"
-               outputs.upToDateWhen {false}
-               showStandardStreams = true
-            }
-        }
     }
 }
 
