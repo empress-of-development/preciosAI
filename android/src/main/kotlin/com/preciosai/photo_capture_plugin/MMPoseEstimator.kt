@@ -43,7 +43,7 @@ class MMPoseEstimator(
     companion object {
         private const val TAG = "MMPoseEstimator"
         init {
-            System.loadLibrary("ultralytics")
+            System.loadLibrary("postprocess_cpp")
         }
         private const val INPUT_MEAN = 0f
         private const val INPUT_STANDARD_DEVIATION = 255f
