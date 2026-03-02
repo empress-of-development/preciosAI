@@ -45,6 +45,12 @@ flutter:
     - assets/icons/
     - assets/audio/
     - assets/animation/
+    - assets/onboarding/
+    - assets/onboarding/screen_1/
+    - assets/onboarding/screen_2/
+    - assets/onboarding/screen_3/
+    - assets/onboarding/screen_4/
+    - assets/onboarding/screen_5/
 
 flutter_launcher_icons:
   android: "ic_launcher"

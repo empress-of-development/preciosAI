@@ -1,8 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:preciosai/album_page.dart';
 import 'package:video_player/video_player.dart';
+import 'package:preciosai/onboarding_gate.dart';
 
 class SplashScreenVideo extends StatefulWidget {
   const SplashScreenVideo({super.key});
@@ -45,7 +45,7 @@ class _SplashScreenState extends State<SplashScreenVideo> {
   void _continue() {
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(builder: (_) => const AlbumScreen()),
+      MaterialPageRoute(builder: (_) => const OnboardingGate()),
     );
   }
 
