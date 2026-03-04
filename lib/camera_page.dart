@@ -142,6 +142,20 @@ class _CameraPageState extends State<CameraPage> {
             ),
           ),
 
+          // Overlay для закрытия по тапу вне окна
+          if (showSettings)
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () {
+                  setState(() => showSettings = false);
+                },
+                child: Container(
+                  color: Colors.transparent,
+                ),
+              ),
+            ),
+
           // Settings animation
           AnimatedPositioned(
             duration: const Duration(milliseconds: 350),
