@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:preciosai/logger.dart';
+import 'package:preciosai/pose_similarity_slider_button.dart';
 import 'package:preciosai/recognition_view.dart';
 import 'package:preciosai/small_reference_photo.dart';
 
@@ -46,13 +47,21 @@ class _CameraPageState extends State<CameraPage> {
   }
 
   Future<void> readJsonFromAssets() async {
-    final String jsonString = await rootBundle.loadString('assets/gallery_images/ref_predictions.json');
+    final String jsonString = await rootBundle.loadString(
+      'assets/gallery_images/ref_predictions.json',
+    );
     refPredictionsJsonMap = jsonDecode(jsonString);
   }
 
-  Future<void> sendImageToNative(Uint8List bytes, String? assetPredictions) async {
+  Future<void> sendImageToNative(
+    Uint8List bytes,
+    String? assetPredictions,
+  ) async {
     try {
-      await methodChannel.invokeMethod('ref_frame_predict', {'bytes': bytes, 'assetPredictions': assetPredictions});
+      await methodChannel.invokeMethod('ref_frame_predict', {
+        'bytes': bytes,
+        'assetPredictions': assetPredictions,
+      });
     } on PlatformException catch (e) {
       Logger.error('Error in reference image sending: ${e.message}');
     }
@@ -73,7 +82,8 @@ class _CameraPageState extends State<CameraPage> {
         bytes = data.buffer.asUint8List();
 
         String keyName = imagePath.split('/').last;
-        if (refPredictionsJsonMap != null && refPredictionsJsonMap!.containsKey(keyName)) {
+        if (refPredictionsJsonMap != null &&
+            refPredictionsJsonMap!.containsKey(keyName)) {
           assetPredictions = jsonEncode(refPredictionsJsonMap![keyName]);
         }
       } else {
@@ -92,6 +102,7 @@ class _CameraPageState extends State<CameraPage> {
 
     return Scaffold(
       body: Stack(
+        fit: StackFit.expand,
         children: [
           RecognitionView(
             key: const ValueKey('detection_view_main'),
@@ -150,9 +161,7 @@ class _CameraPageState extends State<CameraPage> {
                 onTap: () {
                   setState(() => showSettings = false);
                 },
-                child: Container(
-                  color: Colors.transparent,
-                ),
+                child: Container(color: Colors.transparent),
               ),
             ),
 
@@ -318,6 +327,8 @@ class _CameraPageState extends State<CameraPage> {
               ),
             ),
           ),
+          // Кнопка слайдера для регулирования желаемой степени похожести позы
+          const Positioned.fill(child: PoseSimilaritySliderButton()),
         ],
       ),
     );
