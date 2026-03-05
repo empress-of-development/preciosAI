@@ -54,6 +54,10 @@ class MMPoseEstimator(
         private const val KEYPOINTS_COUNT = 133
     }
 
+    private lateinit var interpreter: Interpreter
+    private lateinit var labels: List<String>
+    private lateinit var inputSize: Size
+
     private lateinit var yoloOutSize: IntArray
     private var detWidth = 640
     private var detHeight = 640
@@ -176,7 +180,7 @@ class MMPoseEstimator(
         )
     }
 
-    override fun predict(bitmap: Bitmap, origWidth: Int, origHeight: Int, rotateForCamera: Boolean, isLandscape: Boolean): InstanceObj {
+    override fun predict(bitmap: Bitmap, origWidth: Int, origHeight: Int, rotateForCamera: Boolean, isLandscape: Boolean, timestamp: Long?): InstanceObj {
         val overallStartTime = System.nanoTime()
 
         rotatedBitmap = if (rotateForCamera) {

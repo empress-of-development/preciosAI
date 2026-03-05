@@ -28,7 +28,7 @@ import org.yaml.snakeyaml.Yaml
 class YOLOPoseEstimator(
     context: Context,
     modelPath: String,
-    override var labels: List<String>,
+    var labels: List<String>,
     private val useGpu: Boolean = true,
     override var confidenceThreshold: Float = 0.65f,
     override var iouThreshold: Float = 0.45f,
@@ -40,10 +40,13 @@ class YOLOPoseEstimator(
         private const val KEYPOINTS_NUMBER = 17
     }
 
+    private lateinit var interpreter: Interpreter
+
     private lateinit var imageProcessorCameraPortrait: ImageProcessor
     private lateinit var imageProcessorCameraPortraitFront: ImageProcessor
     private lateinit var imageProcessorSingleImage: ImageProcessor
-    
+    private lateinit var modelInputSize: Pair<Int, Int>
+
     private lateinit var inputBuffer: ByteBuffer
     private lateinit var outputArray: Array<Array<FloatArray>>
     private var batchSize = 0
@@ -113,7 +116,7 @@ class YOLOPoseEstimator(
         return fileChannel.map(java.nio.channels.FileChannel.MapMode.READ_ONLY, startOffset, declaredLength)
     }
 
-    override fun predict(bitmap: Bitmap, origWidth: Int, origHeight: Int, rotateForCamera: Boolean, isLandscape: Boolean): InstanceObj {
+    override fun predict(bitmap: Bitmap, origWidth: Int, origHeight: Int, rotateForCamera: Boolean, isLandscape: Boolean, timestamp: Long?): InstanceObj {
         t0 = System.nanoTime()
         val tensorImage = TensorImage(DataType.FLOAT32)
         tensorImage.load(bitmap)

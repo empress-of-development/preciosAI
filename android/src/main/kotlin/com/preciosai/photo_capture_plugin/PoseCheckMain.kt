@@ -172,6 +172,7 @@ fun cosineSimilarity(
     poseRef: PredictionObj,
     poseUsr: PredictionObj,
     pose2ImageShape: Size,
+    mode: String = "MediaPipe", // "COCO" или "MediaPipe"
     confThreshold: Float = 0.4f,
     maxToleranceDegrees: Float = 45f
 ): PoseComparisonResult {
@@ -181,8 +182,57 @@ fun cosineSimilarity(
     val details = mutableMapOf<String, Float?>()
     val allScores = mutableListOf<Float>()
 
-    if (kpRef.xy.size < 17 || kpUsr.xy.size < 17) {
+    val minKeypoints = if (mode == "COCO") 17 else 33
+    if (kpRef.xy.size < minKeypoints || kpUsr.xy.size < minKeypoints) {
         return PoseComparisonResult(0f, details)
+    }
+
+    val fallbackAnchors: List<Pair<Int, Int>>
+    val complexLimbs: Map<String, Triple<Int, Int, Int>>
+    val simpleBones: Map<String, Pair<Int, Int>>
+
+    if (mode == "COCO") {
+        fallbackAnchors = listOf(
+            Pair(11, 12), // Таз
+            Pair(5, 6),   // Плечи
+            Pair(3, 4),   // Уши
+            Pair(1, 2)    // Глаза
+        )
+        complexLimbs = mapOf(
+            "right_hand" to Triple(5, 7, 9),
+            "left_hand" to Triple(6, 8, 10),
+            "right_leg" to Triple(11, 13, 15),
+            "left_leg" to Triple(12, 14, 16)
+        )
+        simpleBones = mapOf(
+            "eyes" to Pair(1, 2),
+            "ears" to Pair(3, 4),
+            "shoulders" to Pair(5, 6),
+            "pelvis" to Pair(11, 12),
+            "right_side" to Pair(5, 11),
+            "left_side" to Pair(6, 12)
+        )
+    } else {
+        fallbackAnchors = listOf(
+            Pair(23, 24), // Таз
+            Pair(11, 12), // Плечи
+            Pair(7, 8),   // Уши
+            Pair(2, 5)    // Глаза
+        )
+        complexLimbs = mapOf(
+            "right_hand" to Triple(11, 13, 15),
+            "left_hand" to Triple(12, 14, 16),
+            "right_leg" to Triple(23, 25, 27),
+            "left_leg" to Triple(24, 26, 28)
+        )
+        simpleBones = mapOf(
+            "eyes" to Pair(2, 5),
+            "ears" to Pair(7, 8),
+            "shoulders" to Pair(11, 12),
+            "pelvis" to Pair(23, 24),
+            "right_side" to Pair(11, 23),
+            "left_side" to Pair(12, 24)
+        )
     }
 
     fun getAngleBetweenVectors(v1x: Float, v1y: Float, v2x: Float, v2y: Float): Float {
@@ -209,21 +259,13 @@ fun cosineSimilarity(
         )
     }
 
-    // Проверка на правильное расположение модели
-    // идем по каскаду по точкам снизу вверх и ищем те, которые есть и на референсе, и на кадре
-    // по этой точке проверяем дистанцию между ними
-
-    val fallbackAnchors = listOf(
-        Pair(11, 12), // Приоритет 1: Таз (Центр масс)
-        Pair(5, 6),   // Приоритет 2: Плечи (Портрет по пояс)
-        Pair(3, 4),   // Приоритет 3: Уши (Лицо крупным планом)
-        Pair(1, 2)    // Приоритет 4: Глаза (Запасной вариант для лица)
-    )
-
-    val maxGlobalShiftTolerance: Float = 0.15f
+    val maxGlobalShiftTolerance = 0.15f
     var anchorFound = false
     val aspectRatio = pose2ImageShape.width.toFloat() / pose2ImageShape.height.toFloat()
 
+    // Проверка на правильное расположение модели
+    // идем по каскаду по точкам снизу вверх и ищем те, которые есть и на референсе, и на кадре
+    // по этой точке проверяем дистанцию между ними
     for ((idx1, idx2) in fallbackAnchors) {
         if (kpRef.scores.getOrElse(idx1) { 0f } >= confThreshold &&
             kpRef.scores.getOrElse(idx2) { 0f } >= confThreshold &&
@@ -254,13 +296,6 @@ fun cosineSimilarity(
         details["location"] = null
     }
 
-    val complexLimbs = mapOf(
-        "left_hand" to Triple(5, 7, 9),
-        "right_hand" to Triple(6, 8, 10),
-        "left_leg" to Triple(11, 13, 15),
-        "right_leg" to Triple(12, 14, 16)
-    )
-
     for ((limbName, indices) in complexLimbs) {
         val (idx1, idx2, idx3) = indices
 
@@ -283,20 +318,11 @@ fun cosineSimilarity(
 
         val worstErrorDegrees = maxOf(bone1Diff, bone2Diff, jointDiff)
         val score = (1f - (worstErrorDegrees / maxToleranceDegrees)).coerceIn(0f, 1f)
-        Log.d("PoseCheckMain", "$limbName: bone1Diff $bone1Diff, bone2Diff $bone2Diff, jointDiff $jointDiff, worstErrorDegrees $worstErrorDegrees, score $score")
+        Log.d("PoseCheckMain", "$limbName: worstErrorDegrees $worstErrorDegrees, score $score")
 
         details[limbName] = score
         allScores.add(score)
     }
-
-    val simpleBones = mapOf(
-        "eyes" to Pair(1, 2),
-        "ears" to Pair(3, 4),
-        "shoulders" to Pair(5, 6),
-        "pelvis" to Pair(11, 12),
-        "left_side" to Pair(5, 11),
-        "right_side" to Pair(6, 12)
-    )
 
     for ((boneName, indices) in simpleBones) {
         val (idx1, idx2) = indices
@@ -323,7 +349,6 @@ fun cosineSimilarity(
 
         // штраф за самую несовпадающую часть
         val penaltyWeight = 0.35f
-
         (averageScore * (1f - penaltyWeight)) + (minScore * penaltyWeight)
     } else {
         0f

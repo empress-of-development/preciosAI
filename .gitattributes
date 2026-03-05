@@ -4,3 +4,4 @@ example/assets/models/mmpose_model_postproc_xnnpack.pte filter=lfs diff=lfs merg
 example/assets/models/yolo11n-pose.tflite filter=lfs diff=lfs merge=lfs -text
 example/assets/models/yolo11n.tflite filter=lfs diff=lfs merge=lfs -text
 example/assets/gallery_images/ref_predictions.json filter=lfs diff=lfs merge=lfs -text
+example/assets/models/pose_landmarker_full.task filter=lfs diff=lfs merge=lfs -text

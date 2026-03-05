@@ -12,7 +12,7 @@ import kotlin.math.hypot
 
 private data class Bone(val start: Int, val end: Int, val partKey: String)
 
-class CapsulePoseRenderer {
+class CapsulePoseRenderer @JvmOverloads constructor(private val poseMode: String = "COCO") {
 
     // Кисть для четкой границы
     private val strokePaint = Paint().apply {
@@ -27,15 +27,26 @@ class CapsulePoseRenderer {
         style = Paint.Style.FILL
     }
 
-    private val colorGood = Color.parseColor("#39FF14")
-    private val colorWarning = Color.parseColor("#FF9100")
-    private val colorBad = Color.parseColor("#FF003C")
-    private val limbs = listOf(
-        Bone(5, 7, "left_hand"), Bone(7, 9, "left_hand"),
-        Bone(6, 8, "right_hand"), Bone(8, 10, "right_hand"),
-        Bone(11, 13, "left_leg"), Bone(13, 15, "left_leg"),
-        Bone(12, 14, "right_leg"), Bone(14, 16, "right_leg")
-    )
+    companion object {
+        private val colorGood = Color.parseColor("#39FF14")
+        private val colorWarning = Color.parseColor("#FF9100")
+        private val colorBad = Color.parseColor("#FF003C")
+        private val limbsConsts = mapOf(
+            "COCO" to listOf(
+                Bone(5, 7, "right_hand"), Bone(7, 9, "right_hand"),
+                Bone(6, 8, "left_hand"), Bone(8, 10, "left_hand"),
+                Bone(11, 13, "right_leg"), Bone(13, 15, "right_leg"),
+                Bone(12, 14, "left_leg"), Bone(14, 16, "left_leg")
+            ),
+            "MediaPipe" to listOf(
+                Bone(12, 14, "left_hand"), Bone(14, 16, "left_hand"),
+                Bone(11, 13, "right_hand"), Bone(13, 15, "right_hand"),
+                Bone(24, 26, "left_leg"), Bone(26, 28, "left_leg"),
+                Bone(23, 25, "right_leg"), Bone(25, 27, "right_leg")
+            )
+        )
+    }
+    private val limbs: List<Bone> = limbsConsts[poseMode]!!
 
     private fun getColorForScore(score: Float): Int {
         return when {
@@ -118,10 +129,10 @@ class CapsulePoseRenderer {
             }
         }
 
-        val leftShoulder = keypoints[5]
-        val rightShoulder = keypoints[6]
-        val leftHip = keypoints[11]
-        val rightHip = keypoints[12]
+        val leftShoulder = if (poseMode == "COCO") keypoints[6] else keypoints[12]
+        val rightShoulder = if (poseMode == "COCO") keypoints[5] else keypoints[11]
+        val leftHip = if (poseMode == "COCO") keypoints[12] else keypoints[24]
+        val rightHip = if (poseMode == "COCO") keypoints[11] else keypoints[23]
         val nose = keypoints[0]
 
         if (leftShoulder != null && rightShoulder != null &&

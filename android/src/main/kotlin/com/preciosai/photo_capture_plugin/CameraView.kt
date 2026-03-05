@@ -72,7 +72,7 @@ class CameraView @JvmOverloads constructor(
 
     // Basics
     private var lifecycleOwner: LifecycleOwner? = null
-    private var modelType: String = "YOLOPoseEstimator" // "MMPoseEstimator"  "YOLOPoseEstimator"
+    private var modelType: String = "MediaPipeEstimator" // "MMPoseEstimator"  "YOLOPoseEstimator" "MediaPipeEstimator
     private val mainScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     private val autoZoom = AutoZoom()
@@ -113,7 +113,10 @@ class CameraView @JvmOverloads constructor(
     }
 
     // The overlay for drawing
-    private val overlayView: OverlayView = OverlayView(context)
+    private val overlayView: OverlayView = OverlayView(
+        context,
+        if (modelType == "MediaPipeEstimator") "MediaPipe" else "COCO"
+    )
 
     private var predictor: BasePredictor? = null
     // Getter for external access to predictor
@@ -220,7 +223,7 @@ class CameraView @JvmOverloads constructor(
             var predictor: BasePredictor
             if (modelType == "MMPoseEstimator") {
                 predictor = MMPoseEstimator(context)
-            } else {
+            } else if (modelType == "YOLOPoseEstimator") {
                 val modelPath = "yolo11n-pose.tflite"
                 predictor = YOLOPoseEstimator(
                     context,
@@ -228,6 +231,8 @@ class CameraView @JvmOverloads constructor(
                     CameraViewUtils.loadLabels(),
                     useGpu = true
                 )
+            } else {
+                predictor = MediaPipeEstimator(context)
             }
             post {
                 this.predictor = predictor
@@ -666,10 +671,10 @@ class CameraView @JvmOverloads constructor(
                 // For camera feed, we typically rotate the bitmap
                 // In landscape mode, we don't rotate, so width/height should match actual bitmap dimensions
                 val result = if (isLandscape) {
-                    p.predict(bitmap, imageProxy.width, imageProxy.height, rotateForCamera = true, isLandscape = isLandscape)
+                    p.predict(bitmap, imageProxy.width, imageProxy.height, rotateForCamera = true, isLandscape = isLandscape, timestamp = imageProxy.imageInfo.timestamp)
                 } else {
                     // In portrait mode, keep the original behavior (h, w)
-                    p.predict(bitmap, imageProxy.height, imageProxy.width, rotateForCamera = true, isLandscape = isLandscape)
+                    p.predict(bitmap, imageProxy.height, imageProxy.width, rotateForCamera = true, isLandscape = isLandscape, timestamp = imageProxy.imageInfo.timestamp)
                 }
 
                 if (result.objects.isEmpty() || refDetectionResult!!.objects.isEmpty()) {
@@ -855,10 +860,9 @@ class CameraView @JvmOverloads constructor(
         }
     }
 
-
     // OverlayView нужен для отделения отрисовки от камеры/preview
-    private inner class OverlayView @JvmOverloads constructor(context: Context) : View(context) {
-        private val renderer = OverlayRenderer()
+    private inner class OverlayView @JvmOverloads constructor(context: Context, poseMode: String) : View(context) {
+        private val renderer = OverlayRenderer(poseMode)
         private var state: OverlayState? = null
 
         init {

@@ -88,10 +88,13 @@ class PhotoCapturePlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCal
         when (call.method) {
             "ref_frame_predict" -> {
                 try {
+                    Log.d(TAG, "ref_frame_predict start!")
+
                     val bytes = call.argument<ByteArray>("bytes") ?: return
                     val assetPredictions = call.argument<String?>("assetPredictions")
                     val platformView = platformViewFactory.activeViews.values.first()
                     if (platformView != null) {
+
                         if (assetPredictions != null) {
                             val json = Json {
                                 ignoreUnknownKeys = true
@@ -99,11 +102,15 @@ class PhotoCapturePlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCal
                             platformView.cameraViewInstance.refDetectionResult = json.decodeFromString<InstanceObj>(assetPredictions)
                             return
                         }
+
                         val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
                         // saveBitmapToFile(applicationContext, bitmap, "ref_frame_predict_${System.currentTimeMillis()}")
 
                         val predictorInstance = platformView.cameraViewInstance.predictorInstance
+
                         if (predictorInstance != null) {
+                            Log.d(TAG, "ref_frame_predict predictorInstance ok!")
+
                             val w = bitmap.width
                             val h = bitmap.height
                             Log.d(TAG, "predictorInstance result ${predictorInstance}")

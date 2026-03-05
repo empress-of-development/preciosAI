@@ -34,7 +34,7 @@ class _CameraPageState extends State<CameraPage> {
 
   Future<void> init() async {
     // TODO wait for the model to initialize normally
-    await Future.delayed(const Duration(milliseconds: 2000));
+    await Future.delayed(const Duration(milliseconds: 4000));
     if (!mounted) return;
     await readJsonFromAssets();
     pickAndSendRefImage(widget.refImagePath);

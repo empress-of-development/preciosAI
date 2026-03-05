@@ -124,6 +124,7 @@ android {
         implementation("androidx.concurrent:concurrent-futures-ktx:1.2.0")
         implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0")
 
+        implementation("com.google.mediapipe:tasks-vision:0.10.32")
     }
 }
 

@@ -3,6 +3,7 @@ package com.preciosai.photo_capture_plugin
 import android.graphics.*
 import kotlin.math.max
 import android.util.Log
+import kotlin.arrayOf
 
 data class OverlayState(
     val result: InstanceObj?,
@@ -17,8 +18,16 @@ data class OverlayState(
     val visualizationMode: String = "skeleton"
 )
 
+data class PoseTopology(
+    val skeletonUpperBody: Array<IntArray>,
+    val skeletonUpperBodyIndexes: IntArray,
+    val skeletonLowerBody: Array<IntArray>,
+    val skeletonLowerBodyIndexes: IntArray,
+    val skeletonExcludedIndexes: IntArray,
+    val skeletonPartially: Array<IntArray>
+)
 
-class OverlayRenderer {
+class OverlayRenderer @JvmOverloads constructor(private val poseMode: String) {
 
     companion object {
 
@@ -28,29 +37,59 @@ class OverlayRenderer {
 
         private const val BOX_CORNER_RADIUS = 12f
 
-        private val skeletonUpperBody = arrayOf(intArrayOf(8, 10), intArrayOf(6, 8), intArrayOf(5, 6), intArrayOf(5, 7), intArrayOf(7, 9))
-        private val skeletonUpperBodyIndexes = arrayOf(10, 8, 6, 5, 7, 9)
-        private val skeletonLowerBody = arrayOf(intArrayOf(16, 14), intArrayOf(14, 12), intArrayOf(11, 12), intArrayOf(13, 11), intArrayOf(15, 13))
-        private val skeletonLowerBodyIndexes = arrayOf(16, 14, 12, 11, 13, 15)
+        private val poseTopologies: Map<String, PoseTopology> = mapOf(
+            "COCO" to PoseTopology(
+                skeletonUpperBody = arrayOf(
+                    intArrayOf(8, 10), intArrayOf(6, 8), intArrayOf(5, 6), intArrayOf(5, 7), intArrayOf(7, 9)
+                ),
+                skeletonUpperBodyIndexes = intArrayOf(10, 8, 6, 5, 7, 9),
 
-        private val skeletonExcludedIndexes = arrayOf(17, 18, 19, 20, 21, 22)
+                skeletonLowerBody = arrayOf(
+                    intArrayOf(16, 14), intArrayOf(14, 12), intArrayOf(11, 12), intArrayOf(13, 11), intArrayOf(15, 13)
+                ),
+                skeletonLowerBodyIndexes = intArrayOf(16, 14, 12, 11, 13, 15),
 
-        private val skeletonPartially = arrayOf(
-            intArrayOf(5, 11), intArrayOf(6, 12), // sides of the body
-            intArrayOf(1, 2), intArrayOf(0, 1), intArrayOf(0, 2), // eyes and nose
-            intArrayOf(1, 3), intArrayOf(2, 4), // ears // intArrayOf(3, 5), intArrayOf(4, 6),
-            intArrayOf(15, 17), intArrayOf(15, 18), intArrayOf(15, 19), intArrayOf(16, 20), intArrayOf(16, 21), intArrayOf(16, 22), // feets
-            intArrayOf(91, 92), intArrayOf(92, 93), intArrayOf(93, 94), intArrayOf(94, 95), intArrayOf(91, 96), // palms
-            intArrayOf(96, 97), intArrayOf(97, 98),
-            intArrayOf(98, 99), intArrayOf(91, 100), intArrayOf(100, 101), intArrayOf(101, 102), intArrayOf(102, 103),
-            intArrayOf(91, 104), intArrayOf(104, 105), intArrayOf(105, 106), intArrayOf(106, 107), intArrayOf(91, 108),
-            intArrayOf(108, 109), intArrayOf(109, 110), intArrayOf(110, 111), intArrayOf(112, 113), intArrayOf(113, 114),
-            intArrayOf(114, 115), intArrayOf(115, 116), intArrayOf(112, 117), intArrayOf(117, 118), intArrayOf(118, 119),
-            intArrayOf(119, 120), intArrayOf(112, 121), intArrayOf(121, 122), intArrayOf(122, 123), intArrayOf(123, 124),
-            intArrayOf(112, 125), intArrayOf(125, 126), intArrayOf(126, 127), intArrayOf(127, 128), intArrayOf(112, 129),
-            intArrayOf(129, 130), intArrayOf(130, 131), intArrayOf(131, 132)
+                skeletonExcludedIndexes = intArrayOf(17, 18, 19, 20, 21, 22),
+                skeletonPartially = arrayOf(
+                    intArrayOf(5, 11), intArrayOf(6, 12), // sides of the body
+                    intArrayOf(1, 2), intArrayOf(0, 1), intArrayOf(0, 2), // eyes and nose
+                    intArrayOf(1, 3), intArrayOf(2, 4), // ears // intArrayOf(3, 5), intArrayOf(4, 6),
+                    intArrayOf(15, 17), intArrayOf(15, 18), intArrayOf(15, 19), intArrayOf(16, 20), intArrayOf(16, 21), intArrayOf(16, 22), // feets
+                    intArrayOf(91, 92), intArrayOf(92, 93), intArrayOf(93, 94), intArrayOf(94, 95), intArrayOf(91, 96), // palms
+                    intArrayOf(96, 97), intArrayOf(97, 98),
+                    intArrayOf(98, 99), intArrayOf(91, 100), intArrayOf(100, 101), intArrayOf(101, 102), intArrayOf(102, 103),
+                    intArrayOf(91, 104), intArrayOf(104, 105), intArrayOf(105, 106), intArrayOf(106, 107), intArrayOf(91, 108),
+                    intArrayOf(108, 109), intArrayOf(109, 110), intArrayOf(110, 111), intArrayOf(112, 113), intArrayOf(113, 114),
+                    intArrayOf(114, 115), intArrayOf(115, 116), intArrayOf(112, 117), intArrayOf(117, 118), intArrayOf(118, 119),
+                    intArrayOf(119, 120), intArrayOf(112, 121), intArrayOf(121, 122), intArrayOf(122, 123), intArrayOf(123, 124),
+                    intArrayOf(112, 125), intArrayOf(125, 126), intArrayOf(126, 127), intArrayOf(127, 128), intArrayOf(112, 129),
+                    intArrayOf(129, 130), intArrayOf(130, 131), intArrayOf(131, 132)
+                )
+            ),
+            "MediaPipe" to PoseTopology(
+                skeletonUpperBody = arrayOf(
+                    intArrayOf(14, 16), intArrayOf(12, 14), intArrayOf(11, 12), intArrayOf(11, 13), intArrayOf(13, 15)
+                ),
+                skeletonUpperBodyIndexes = intArrayOf(16, 14, 12, 11, 13, 15),
+
+                skeletonLowerBody = arrayOf(
+                    intArrayOf(28, 26), intArrayOf(26, 24), intArrayOf(23, 24), intArrayOf(25, 23), intArrayOf(27, 25)
+                ),
+                skeletonLowerBodyIndexes = intArrayOf(28, 26, 24, 23, 25, 27),
+
+                skeletonExcludedIndexes = intArrayOf(),
+                skeletonPartially = arrayOf(
+                    intArrayOf(12, 24), intArrayOf(11, 23), // sides of the body
+                    intArrayOf(8, 5), intArrayOf(5, 0), intArrayOf(0, 2), intArrayOf(2, 7), // eyes and nose
+                    intArrayOf(10, 9), // mouth
+                    intArrayOf(28, 32), intArrayOf(32, 30), intArrayOf(30, 28), // left feet
+                    intArrayOf(27, 29), intArrayOf(29, 31), intArrayOf(31, 27), // right feet
+                    intArrayOf(16, 22), intArrayOf(16, 18), intArrayOf(18, 20), intArrayOf(16, 20),  // left palm
+                    intArrayOf(15, 21), intArrayOf(15, 17), intArrayOf(17, 19), intArrayOf(15, 19),  // right palm
+                )
+
+            )
         )
-
         private val boneColors = listOf(Color.parseColor("#B3B19CD9"), Color.parseColor("#B3B4F9D7"))
 
     }
@@ -80,7 +119,8 @@ class OverlayRenderer {
         alpha = 160
     }
 
-    private val capsulePoseRenderer = CapsulePoseRenderer()
+    private val currentPoseIndexes: PoseTopology = poseTopologies[poseMode]!!
+    private val capsulePoseRenderer = CapsulePoseRenderer(poseMode)
 
     private fun captureDraw(canvas: Canvas, width: Float, height: Float) {
         val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -110,7 +150,7 @@ class OverlayRenderer {
 
     }
 
-    private fun drawLimb(canvas: Canvas, joints: Array<PointF?>, jointsIndexes: Array<Int>): Boolean {
+    private fun drawLimb(canvas: Canvas, joints: Array<PointF?>, jointsIndexes: IntArray): Boolean {
         val path = Path()
         var idx = 0
         var p = joints.getOrNull(jointsIndexes[idx])
@@ -207,6 +247,7 @@ class OverlayRenderer {
         val dx = (frameWidth - resWidth * scale) / 2f
         val dy = (frameHeight - resHeight * scale) / 2f
 
+        // TODO нужно ли рисовать бокс
         if (state.showPulseRect && state.refDetectionResult != null) {
             val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 style = Paint.Style.FILL
@@ -239,7 +280,7 @@ class OverlayRenderer {
 
                 val points = arrayOfNulls<PointF>(person.keypoints.xyn.size)
                 for (i in person.keypoints.xyn.indices) {
-                    if (person.keypoints.scores[i] > confidenceThreshold && i !in skeletonExcludedIndexes) {
+                    if (person.keypoints.scores[i] > confidenceThreshold && i !in currentPoseIndexes.skeletonExcludedIndexes) {
                         val pxCam = person.keypoints.xyn[i].first * resWidth
                         val pyCam = person.keypoints.xyn[i].second * resHeight
                         var px = pxCam * scale + dx
@@ -258,12 +299,13 @@ class OverlayRenderer {
                 }
 
                 if (state.visualizationMode in listOf("skeleton", "skeleton+capsules")) {
-                    var skeletonJoints = skeletonPartially
-                    var drawRes = drawLimb(canvas, points, skeletonUpperBodyIndexes)
-                    if (!drawRes) skeletonJoints = skeletonPartially.plus(skeletonUpperBody)
+                    var skeletonJoints = currentPoseIndexes.skeletonPartially
+                    Log.d(TAG, "skeletonJoints = ${person.keypoints.xyn.size}, poseMode $poseMode")
+                    var drawRes = drawLimb(canvas, points, currentPoseIndexes.skeletonUpperBodyIndexes)
+                    if (!drawRes) skeletonJoints = currentPoseIndexes.skeletonPartially.plus(currentPoseIndexes.skeletonUpperBody)
 
-                    drawRes = drawLimb(canvas, points, skeletonLowerBodyIndexes)
-                    if (!drawRes) skeletonJoints = skeletonPartially.plus(skeletonLowerBody)
+                    drawRes = drawLimb(canvas, points, currentPoseIndexes.skeletonLowerBodyIndexes)
+                    if (!drawRes) skeletonJoints = currentPoseIndexes.skeletonPartially.plus(currentPoseIndexes.skeletonLowerBody)
 
                     // Skeleton connection
                     for ((idx, bone) in skeletonJoints.withIndex()) {

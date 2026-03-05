@@ -6,17 +6,11 @@ import org.opencv.core.Size
 
 
 abstract class BasePredictor {
-    protected lateinit var interpreter: Interpreter
-    protected fun isInterpreterInitialized() = this::interpreter.isInitialized
-    protected lateinit var modelInputSize: Pair<Int, Int>
-
     protected var t0: Long = 0L
     protected var t2: Double = 0.0
     protected var t3: Long = System.nanoTime()
     protected var t4: Double = 0.0
 
-    open lateinit var inputSize: Size
-    open lateinit var labels: List<String>
     open var confidenceThreshold: Float = 0.25f
     open var iouThreshold: Float = 0.4f
     open var isFrontCamera: Boolean = false
@@ -49,5 +43,5 @@ abstract class BasePredictor {
         const val NS_TO_S = 1e-9
     }
 
-    abstract fun predict(bitmap: Bitmap, origWidth: Int, origHeight: Int, rotateForCamera: Boolean = false, isLandscape: Boolean = false): InstanceObj
+    abstract fun predict(bitmap: Bitmap, origWidth: Int, origHeight: Int, rotateForCamera: Boolean = false, isLandscape: Boolean = false, timestamp: Long? = null): InstanceObj
 }
