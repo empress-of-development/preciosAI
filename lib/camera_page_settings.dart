@@ -157,3 +157,156 @@ class _PoseSimilaritySliderButtonState extends State<PoseSimilaritySliderButton>
     );
   }
 }
+
+
+class VisualizationSettingsButton extends StatefulWidget {
+  const VisualizationSettingsButton({Key? key}) : super(key: key);
+
+  @override
+  State<VisualizationSettingsButton> createState() => _VisualizationSettingsButtonState();
+}
+
+class _VisualizationSettingsButtonState extends State<VisualizationSettingsButton> {
+  bool _isPanelVisible = false;
+
+  String _selectedOption = "Skeleton";
+
+  final List<String> _options = [
+    "Empty",
+    "Skeleton",
+    "Capsules",
+    "Skeleton+Capsules"
+  ];
+
+  static const methodChannel = MethodChannel('photo_capture_channel_default');
+
+  Future<void> _sendVisualizationSettingsToKotlin(String value) async {
+    try {
+      await methodChannel.invokeMethod('update_visualization_settings', {
+        'value': value,
+      });
+    } on PlatformException catch (e) {
+      Logger.error(
+        "Error sending visualization settings from flutter slider to Kotlin: '${e.message}'.",
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        // Кнопка
+        Positioned(
+          top: 45,
+          left: 16,
+          child: GestureDetector(
+            onTap: () {
+              setState(() {
+                _isPanelVisible = !_isPanelVisible;
+              });
+            },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.indigo.withOpacity(0.7),
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.2),
+                    blurRadius: 6,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.brush, color: Colors.white, size: 18),
+                  SizedBox(width: 8),
+                  Text(
+                    "Visualization",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+
+        // Выпадающая панель с выбором опций
+        Positioned(
+          top: 100,
+          left: 16,
+          child: AnimatedOpacity(
+            opacity: _isPanelVisible ? 1.0 : 0.0,
+            duration: const Duration(milliseconds: 250),
+            child: IgnorePointer(
+              ignoring: !_isPanelVisible,
+              child: Container(
+                width: 220,
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.indigo.shade900.withOpacity(0.8),
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: _options.map((option) => _buildOptionItem(option)).toList(),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildOptionItem(String title) {
+    final isSelected = _selectedOption == title;
+
+    return InkWell(
+      onTap: () {
+        setState(() {
+          _selectedOption = title;
+          _isPanelVisible = false; // Автоматически скрываем панель после выбора
+        });
+
+        _sendVisualizationSettingsToKotlin(title);
+      },
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        color: isSelected ? Colors.white.withOpacity(0.15) : Colors.transparent,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              title,
+              style: TextStyle(
+                color: isSelected ? Colors.white : Colors.white70,
+                fontSize: 14,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
+            if (isSelected)
+              const Icon(Icons.check, color: Colors.white, size: 18),
+          ],
+        ),
+      ),
+    );
+  }
+}

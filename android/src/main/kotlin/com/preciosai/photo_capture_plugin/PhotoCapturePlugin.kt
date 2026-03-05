@@ -138,6 +138,48 @@ class PhotoCapturePlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCal
                 }
             }
 
+            "update_similarity_score" -> {
+                try {
+                    val similarityValue = call.argument<Double>("value")
+                    if (similarityValue != null) {
+                        val platformView = platformViewFactory.activeViews.values.first()
+                        if (platformView != null) {
+                            platformView.cameraViewInstance.comparePoseThreshold = similarityValue / 100.0
+                            println("Similarity score from flutter slider sent: $similarityValue%")
+                            result.success(null)
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "send_score_slider_button Error sending similarity score from flutter slider", e)
+                    result.error(
+                        "send_score_slider_button",
+                        "Error sending similarity score: ${e.message}",
+                        null
+                    )
+                }
+            }
+
+            "update_visualization_settings" -> {
+                try {
+                    val visualizationMode = call.argument<String>("value")
+                    if (visualizationMode != null) {
+                        val platformView = platformViewFactory.activeViews.values.first()
+                        if (platformView != null) {
+                            platformView.cameraViewInstance.visualizationMode = visualizationMode.lowercase()
+                            println("Visualization mode from flutter sent: $visualizationMode%")
+                            result.success(null)
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "update_visualization_settings Error sending visualization mode from flutter slider", e)
+                    result.error(
+                        "update_visualization_settings",
+                        "Error sending visualization mode: ${e.message}",
+                        null
+                    )
+                }
+            }
+
             else -> result.notImplemented()
         }
     }

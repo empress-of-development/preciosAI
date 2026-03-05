@@ -4,7 +4,6 @@ import android.graphics.*
 import kotlin.math.max
 import android.util.Log
 
-
 data class OverlayState(
     val result: InstanceObj?,
     val refDetectionResult: InstanceObj?,
@@ -13,7 +12,9 @@ data class OverlayState(
     val rectAlpha: Int,
     val showBackArrow: Boolean,
     val captureRequested: Boolean,
-    val arrowAnimationOffset: Float
+    val arrowAnimationOffset: Float,
+    val poseComparisonDetails: Map<String, Float?>? = null,
+    val visualizationMode: String = "skeleton"
 )
 
 
@@ -78,6 +79,8 @@ class OverlayRenderer {
         pathEffect = CornerPathEffect(70f) // радиус скругления
         alpha = 160
     }
+
+    private val capsulePoseRenderer = CapsulePoseRenderer()
 
     private fun captureDraw(canvas: Canvas, width: Float, height: Float) {
         val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -223,45 +226,61 @@ class OverlayRenderer {
         val resList = state.result.objects + (state.refDetectionResult!!.objects ?: emptyList())
 
         // Keypoints & skeleton
-        for ((idx, person) in resList.withIndex()) {
-            var currColor = Color.parseColor("#D50000")
-            if (idx < boneColors.size) {
-                currColor = boneColors[idx]
-            }
-            bonePaint.color = currColor
-            bonePaintCurved.color = currColor
-            jointPaint.color = currColor
 
-            val points = arrayOfNulls<PointF>(person.keypoints.xyn.size)
-            for (i in person.keypoints.xyn.indices) {
-                if (person.keypoints.scores[i] > confidenceThreshold && i !in skeletonExcludedIndexes) {
-                    val pxCam = person.keypoints.xyn[i].first * resWidth
-                    val pyCam = person.keypoints.xyn[i].second * resHeight
-                    var px = pxCam * scale + dx
-                    var py = topBorder + pyCam * scale + dy
-
-                    // For front camera POSE, apply horizontal flip
-                    if (state.isFrontCamera) {
-                        px = frameWidth - px
-                    }
-
-                    canvas.drawCircle(px, py, 8f, jointPaint)
-                    points[i] = PointF(px, py)
+        if (state.visualizationMode != "empty") {
+            for ((idx, person) in resList.withIndex()) {
+                var currColor = Color.parseColor("#D50000")
+                if (idx < boneColors.size) {
+                    currColor = boneColors[idx]
                 }
-            }
+                bonePaint.color = currColor
+                bonePaintCurved.color = currColor
+                jointPaint.color = currColor
 
-            var skeletonJoints = skeletonPartially
-            var drawRes = drawLimb(canvas, points, skeletonUpperBodyIndexes)
-            if (!drawRes) skeletonJoints = skeletonPartially.plus(skeletonUpperBody)
+                val points = arrayOfNulls<PointF>(person.keypoints.xyn.size)
+                for (i in person.keypoints.xyn.indices) {
+                    if (person.keypoints.scores[i] > confidenceThreshold && i !in skeletonExcludedIndexes) {
+                        val pxCam = person.keypoints.xyn[i].first * resWidth
+                        val pyCam = person.keypoints.xyn[i].second * resHeight
+                        var px = pxCam * scale + dx
+                        var py = topBorder + pyCam * scale + dy
 
-            drawRes = drawLimb(canvas, points, skeletonLowerBodyIndexes)
-            if (!drawRes) skeletonJoints = skeletonPartially.plus(skeletonLowerBody)
+                        // For front camera pose, apply horizontal flip
+                        if (state.isFrontCamera) {
+                            px = frameWidth - px
+                        }
 
-            // Skeleton connection
-            for ((idx, bone) in skeletonJoints.withIndex()) {
-                val p1 = points.getOrNull(bone[0])
-                val p2 = points.getOrNull(bone[1])
-                if (p1 != null && p2 != null) canvas.drawLine(p1.x, p1.y, p2.x, p2.y, bonePaint)
+                        if (state.visualizationMode in listOf("skeleton", "skeleton+capsules")) {
+                            canvas.drawCircle(px, py, 8f, jointPaint)
+                        }
+                        points[i] = PointF(px, py)
+                    }
+                }
+
+                if (state.visualizationMode in listOf("skeleton", "skeleton+capsules")) {
+                    var skeletonJoints = skeletonPartially
+                    var drawRes = drawLimb(canvas, points, skeletonUpperBodyIndexes)
+                    if (!drawRes) skeletonJoints = skeletonPartially.plus(skeletonUpperBody)
+
+                    drawRes = drawLimb(canvas, points, skeletonLowerBodyIndexes)
+                    if (!drawRes) skeletonJoints = skeletonPartially.plus(skeletonLowerBody)
+
+                    // Skeleton connection
+                    for ((idx, bone) in skeletonJoints.withIndex()) {
+                        val p1 = points.getOrNull(bone[0])
+                        val p2 = points.getOrNull(bone[1])
+                        if (p1 != null && p2 != null) {
+                            canvas.drawLine(p1.x, p1.y, p2.x, p2.y, bonePaint)
+                        }
+                    }
+                }
+
+                if (
+                    idx != resList.size - 1 &&
+                    state.visualizationMode in listOf("capsules", "skeleton+capsules")
+                ) {
+                    capsulePoseRenderer.drawPose(canvas, points, state.poseComparisonDetails)
+                }
             }
         }
 

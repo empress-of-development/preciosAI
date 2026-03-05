@@ -78,7 +78,12 @@ class CameraView @JvmOverloads constructor(
     private val autoZoom = AutoZoom()
     public var refDetectionResult: InstanceObj? = null
     private val iouThreshold = 0.65
-    private val comparePoseThreshold = 0.65
+    private val comparePoseUseSmoothing = false
+    private val poseEvaluator = PoseEvaluator(alpha = 0.2f)
+    private var poseComparisonMode = "cosine" // simple OKS PDJ cosine
+
+    public var comparePoseThreshold = 0.7
+    public var visualizationMode = "skeleton"
 
     // Throttling variables for performance control
     private var throttleState = ThrottleState()
@@ -135,7 +140,6 @@ class CameraView @JvmOverloads constructor(
     // Result photo capture
     private lateinit var imageCaptureForResult: ImageCapture
     private lateinit var imageAnalysisForResult: ImageAnalysis
-    private var poseComparisonMode = "OKS" // simple OKS PDJ
     private var hdrInProgress = false
     private var useHDR = false
     private var sendResultPhotoInd = false
@@ -537,13 +541,14 @@ class CameraView @JvmOverloads constructor(
                             val mat = CameraViewUtils.imageProxyToRotatedMat(image)
                             image.close()
 
-                            val beigeMat = resultImageShoot.stylizeBeigeLook(mat)
-                            val jpegBytes = CameraViewUtils.matToJpegBytes(beigeMat)
+                            // TODO update image postprocessing
+                            // val beigeMat = resultImageShoot.stylizeBeigeLook(mat)
+                            val jpegBytes = CameraViewUtils.matToJpegBytes(mat)
 
-                            resultImageShoot.saveMatAsJpeg(beigeMat, context.contentResolver)
+                            resultImageShoot.saveMatAsJpeg(mat, context.contentResolver)
 
                             mat.release()
-                            beigeMat.release()
+                            // beigeMat.release()
                             cont.resume(jpegBytes)
 
                         } catch (e: Exception) {
@@ -686,6 +691,7 @@ class CameraView @JvmOverloads constructor(
 
                 val refPredictionObj = refDetectionResult!!.objects[0]
                 val currentPredictionObj = result.objects[0]
+                var poseComparisonDetails: Map<String, Float?>? = null
 
                 if (autoZoom.refZoomData == null) {
                     // по референсному кадру расчитываем параметры для автозума только один раз
@@ -758,12 +764,40 @@ class CameraView @JvmOverloads constructor(
                     }
 
                     if (autoZoom.stage == "kps_comparison") {
+                        if (pulseRectAnimation.state.visible) pulseRectAnimation.setAnimationVisible(false)
+
                         var resIou = iou(refPredictionObj.bbox.xywhn, currentPredictionObj.bbox.xywhn)
                         if (resIou < iouThreshold) {
                             autoZoom.kpsComparisonDurationCount = 0
                         } else {
-                            var compareRes = comparePoses(poseComparisonMode, refPredictionObj, currentPredictionObj, result.imageShape)
-                            // Log.d(TAG, "compareRes, $compareRes")
+                            var compareRes: Float?
+                            if (comparePoseUseSmoothing) {
+                                val poseComparisonResult = poseEvaluator.compareAndSmooth(refPredictionObj, currentPredictionObj)
+                                compareRes = poseComparisonResult.overallScore
+                                poseComparisonDetails = poseComparisonResult.details
+                            } else {
+                                if (poseComparisonMode != "cosine") {
+                                    compareRes = comparePoses(poseComparisonMode, refPredictionObj, currentPredictionObj, result.imageShape)
+                                } else {
+                                    val poseComparisonResult = cosineSimilarity(
+                                        refPredictionObj,
+                                        currentPredictionObj,
+                                        result.imageShape
+                                    )
+                                    compareRes = poseComparisonResult.overallScore
+                                    poseComparisonDetails = poseComparisonResult.details
+                                    if (poseComparisonDetails != null) {
+                                        val location_score = poseComparisonDetails["location"] ?: 0f
+                                        if (location_score < 0.7 && !pulseRectAnimation.state.visible) pulseRectAnimation.setAnimationVisible(
+                                            true
+                                        )
+                                        if (location_score > 0.7 && pulseRectAnimation.state.visible) pulseRectAnimation.setAnimationVisible(
+                                            false
+                                        )
+                                    }
+                                    Log.d(TAG, "poseComparisonDetails $poseComparisonDetails")
+                                }
+                            }
 
                             if (compareRes != null && compareRes > comparePoseThreshold) {
                                 autoZoom.kpsComparisonDurationCount++
@@ -806,7 +840,9 @@ class CameraView @JvmOverloads constructor(
                     showPulseRect = pulseRectAnimation.state.visible,
                     rectAlpha = pulseRectAnimation.state.animationOffset.toInt(),
                     showBackArrow = backArrowAnimation.state.visible,
-                    arrowAnimationOffset = backArrowAnimation.state.animationOffset
+                    arrowAnimationOffset = backArrowAnimation.state.animationOffset,
+                    poseComparisonDetails = poseComparisonDetails,
+                    visualizationMode = visualizationMode,
                 )
                 post {
                     overlayView.updateState(state)

@@ -1,10 +1,9 @@
-
 package com.preciosai.photo_capture_plugin
 
-import kotlin.math.sqrt
 import kotlin.math.min
 import kotlin.math.max
 import kotlin.math.pow
+import kotlin.math.sqrt
 import android.util.Log
 import kotlin.math.exp
 import android.graphics.RectF
@@ -40,6 +39,8 @@ fun comparePoses(poseComparisonMode: String, pose1: PredictionObj, pose2: Predic
         compareRes = objectKeypointSimilarity(pose1, pose2, pose2ImageShape)
     } else if (poseComparisonMode == "PDJ") {
         compareRes = percentageOfDetectedJoints(pose1, pose2)
+    } else if (poseComparisonMode == "cosine") {
+        compareRes = cosineSimilarity(pose1, pose2, pose2ImageShape).overallScore
     }
     return compareRes
 }
@@ -47,7 +48,7 @@ fun comparePoses(poseComparisonMode: String, pose1: PredictionObj, pose2: Predic
 fun euclideanDistance(
     pose1: PredictionObj,
     pose2: PredictionObj,
-    excludeIndexes: List<Int> = (17..133).toList(), //emptyList(), //TODO часть точек не учитывается
+    excludeIndexes: List<Int> = (17..133).toList(),
     scoreThreshold: Float = 0.4f
 ): Float? {
     // Euclidean distance for poses as similarity measure

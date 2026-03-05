@@ -5,8 +5,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:preciosai/camera_page_settings.dart';
 import 'package:preciosai/logger.dart';
-import 'package:preciosai/pose_similarity_slider_button.dart';
 import 'package:preciosai/recognition_view.dart';
 import 'package:preciosai/small_reference_photo.dart';
 
@@ -329,6 +329,8 @@ class _CameraPageState extends State<CameraPage> {
           ),
           // Кнопка слайдера для регулирования желаемой степени похожести позы
           const Positioned.fill(child: PoseSimilaritySliderButton()),
+          // Кнопка визуализации
+          const Positioned.fill(child: VisualizationSettingsButton()),
         ],
       ),
     );
