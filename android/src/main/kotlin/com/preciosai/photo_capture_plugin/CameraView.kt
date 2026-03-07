@@ -58,7 +58,8 @@ import android.hardware.camera2.CaptureRequest
 import android.hardware.camera2.CameraCharacteristics
 
 
-const val MODEL_TYPE: String = "MMPoseEstimator" // "MMPoseEstimator" "YOLOPoseEstimator" "MediaPipeEstimator"
+// TODO костыль!
+const val MODEL_TYPE: String = "MediaPipeEstimator" // "MMPoseEstimator" "YOLOPoseEstimator" "MediaPipeEstimator"
 
 
 object PredictorManager {

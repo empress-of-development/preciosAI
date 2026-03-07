@@ -13,17 +13,18 @@ data class ZoomData(
 
 
 class AutoZoom {
-    private var confidenceThreshold = 0.2f
-    private var meanZoomLength = 3
+    private val modelType = if (MODEL_TYPE == "MediaPipeEstimator") "MediaPipe" else "COCO"
+    private val confidenceThreshold = 0.2f
+    private val meanZoomLength = 3
 
     public var stage = "zoom" // location, kps_comparison
-    public var zoomDurationThreshold = 10 // количество кадров для стабилизации зума после того, как он перестал меняться
+    public val zoomDurationThreshold = 10 // количество кадров для стабилизации зума после того, как он перестал меняться
     public var zoomDurationCount = 0
 
-    public var locationDurationThreshold = 10
+    public val locationDurationThreshold = 10
     public var locationDurationCount = 0
 
-    public var kpsComparisonDurationThreshold = 10
+    public val kpsComparisonDurationThreshold = 10
     public var kpsComparisonDurationCount = 0
 
     public var tooCloseInd: Int = 0
@@ -53,16 +54,29 @@ class AutoZoom {
     private fun getBodyPoints(obj: PredictionObj): List<Pair<Float, Float>?> {
         // Предполагаем, что голова всегда есть в кадре
         // элементы списка - либо точки, либо null
-        return listOf(
-            avg(obj, listOf(1, 2)), //eyes
-            avg(obj, listOf(3, 4)), //ears
-            //if (obj.keypoints.scores[0] > 0.45) res.keypoints.xyn[0] else null, //nose
-            avg(obj, listOf(0)), //nose
-            avg(obj, listOf(5, 6)), //shoulders
-            avg(obj, listOf(11, 12)), //pelvis
-            //avg(obj, listOf(13, 14)), //knees
-            //avg(obj, listOf(15, 16)), //feet
-        )
+        if (modelType == "COCO") {
+            return listOf(
+                avg(obj, listOf(1, 2)), //eyes
+                avg(obj, listOf(3, 4)), //ears
+                //if (obj.keypoints.scores[0] > 0.45) res.keypoints.xyn[0] else null, //nose
+                avg(obj, listOf(0)), //nose
+                avg(obj, listOf(5, 6)), //shoulders
+                avg(obj, listOf(11, 12)), //pelvis
+                //avg(obj, listOf(13, 14)), //knees
+                //avg(obj, listOf(15, 16)), //feet
+            )
+        } else {
+            return listOf(
+                avg(obj, listOf(5, 2)), //eyes
+                avg(obj, listOf(8, 7)), //ears
+                //if (obj.keypoints.scores[0] > 0.45) res.keypoints.xyn[0] else null, //nose
+                avg(obj, listOf(0)), //nose
+                avg(obj, listOf(12, 11)), //shoulders
+                avg(obj, listOf(24, 23)), //pelvis
+                //avg(obj, listOf(13, 14)), //knees
+                //avg(obj, listOf(15, 16)), //feet
+            )
+        }
     }
 
     private fun getZoomData(obj: PredictionObj?): ZoomData? {
@@ -113,7 +127,7 @@ class AutoZoom {
             val bodyHeight = currentZoomData.limitingPoints.second!!.value!!.second -
                     obj.bbox.xywhn.top + refZoomData!!.addBottomRatio * obj.bbox.xywhn.height()
 
-            Log.d("AutoZoom", "refHeightRatio: ${refZoomData!!.heightRatio}, bodyHeight: $bodyHeight")
+            // Log.d("AutoZoom", "refHeightRatio: ${refZoomData!!.heightRatio}, bodyHeight: $bodyHeight")
 
             if (!zoomLevelList.isEmpty() && zoomLevelList.last() == null) zoomLevelList.clear()
 

@@ -161,22 +161,36 @@ class MediaPipeEstimator(
         var maxYn = Float.MIN_VALUE
 
         var totalScore = 0f
+        var validPointsCount = 0
 
         for (landmark in landmarks) {
             val xn = landmark.x()
             val yn = landmark.y()
-            val score = landmark.visibility().orElse(0f)
+            val visibility = landmark.visibility().orElse(0f)
+            val presence = landmark.presence().orElse(0f)
+
+            val isOutOfBounds = xn < 0f || xn > 1f || yn < 0f || yn > 1f
+            val finalScore = if (presence < 0.7f || isOutOfBounds) 0f else visibility
 
             xynList.add(Pair(xn, yn))
             xyList.add(Pair(xn * imageWidth, yn * imageHeight))
-            scoresList.add(score)
+            scoresList.add(finalScore)
 
-            totalScore += score
+            if (finalScore > 0f) {
+                totalScore += finalScore
+                validPointsCount++
 
-            if (xn < minXn) minXn = xn
-            if (yn < minYn) minYn = yn
-            if (xn > maxXn) maxXn = xn
-            if (yn > maxYn) maxYn = yn
+                if (finalScore > 0.2f) {
+                    if (xn < minXn) minXn = xn
+                    if (yn < minYn) minYn = yn
+                    if (xn > maxXn) maxXn = xn
+                    if (yn > maxYn) maxYn = yn
+                }
+            }
+        }
+
+        if (validPointsCount == 0 || minXn == Float.MAX_VALUE) {
+            return null
         }
 
         val skeletonWidthN = maxXn - minXn
@@ -199,7 +213,7 @@ class MediaPipeEstimator(
             maxYn * imageHeight
         )
 
-        val avgScore = totalScore / landmarks.size
+        val avgScore = totalScore / validPointsCount
 
         val bbox = BBox(
             clsIndex = 0,
