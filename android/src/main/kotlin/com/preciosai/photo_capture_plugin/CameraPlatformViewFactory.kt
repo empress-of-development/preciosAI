@@ -41,7 +41,8 @@ class CameraPlatformViewFactory(
             viewId,
             creationParams,
             methodChannel,
-            this
+            this,
+            messenger
         ).apply {
             methodChannel.setMethodCallHandler(this)
         }

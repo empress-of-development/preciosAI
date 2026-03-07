@@ -52,6 +52,8 @@ class YOLOPoseEstimator(
     private var batchSize = 0
     private var numAnchors = 0
 
+    private fun isInterpreterInitialized() = this::interpreter.isInitialized
+
     init {
         val modelBuffer = loadModelFromFlutterAsset(context, "assets/models/$modelPath")
 
@@ -108,6 +110,12 @@ class YOLOPoseEstimator(
         imageProcessorSingleImage = createProcessor()
     }
 
+    override fun close() {
+        if (isInterpreterInitialized()) {
+            interpreter.close()
+        }
+    }
+
     private fun loadModelFromFlutterAsset(context: Context, assetName: String): java.nio.MappedByteBuffer {
         val file = CameraViewUtils.assetFileFromFlutter(context, assetName)
         val fileChannel = java.io.RandomAccessFile(file, "r").channel
@@ -116,7 +124,7 @@ class YOLOPoseEstimator(
         return fileChannel.map(java.nio.channels.FileChannel.MapMode.READ_ONLY, startOffset, declaredLength)
     }
 
-    override fun predict(bitmap: Bitmap, origWidth: Int, origHeight: Int, rotateForCamera: Boolean, isLandscape: Boolean, timestamp: Long?): InstanceObj {
+    override fun predict(bitmap: Bitmap, origWidth: Int, origHeight: Int, rotateForCamera: Boolean, isLandscape: Boolean): InstanceObj {
         t0 = System.nanoTime()
         val tensorImage = TensorImage(DataType.FLOAT32)
         tensorImage.load(bitmap)

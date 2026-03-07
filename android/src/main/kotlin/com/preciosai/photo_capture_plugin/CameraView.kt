@@ -33,6 +33,7 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import kotlin.math.abs
 import io.flutter.plugin.common.MethodChannel
+import io.flutter.plugin.common.BinaryMessenger
 import android.os.Handler
 import android.os.Looper
 import android.content.ContentValues
@@ -57,9 +58,70 @@ import android.hardware.camera2.CaptureRequest
 import android.hardware.camera2.CameraCharacteristics
 
 
+const val MODEL_TYPE: String = "MMPoseEstimator" // "MMPoseEstimator" "YOLOPoseEstimator" "MediaPipeEstimator"
+
+
+object PredictorManager {
+    @Volatile var isLoaded = false
+    var predictor: BasePredictor? = null
+    var modelType: String = MODEL_TYPE
+
+    // Создаем scope для фоновых задач, чтобы не плодить потоки
+    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+
+    fun initPredictor(context: Context, onLoaded: (Boolean) -> Unit) {
+        if (isLoaded && predictor != null) {
+            Log.d("PredictorManager", "Predictor already loaded")
+            onLoaded(true)
+            return
+        }
+
+        // Запускаем корутину в фоновом потоке
+        scope.launch {
+            try {
+                Log.d("PredictorManager", "Starting model load: $modelType")
+
+                val newPredictor = when (modelType) {
+                    "MMPoseEstimator" -> MMPoseEstimator(context)
+                    "YOLOPoseEstimator" -> YOLOPoseEstimator(
+                        context,
+                        "yolo11n-pose.tflite",
+                        CameraViewUtils.loadLabels(),
+                        useGpu = true
+                    )
+                    else -> MediaPipeEstimator(context)
+                }
+
+                // Возвращаемся в главный поток для безопасного обновления переменных
+                withContext(Dispatchers.Main) {
+                    predictor = newPredictor
+                    isLoaded = true
+                    Log.d("PredictorManager", "Model loaded successfully: $predictor")
+                    onLoaded(true) // Сообщаем CameraView, что можно забирать модель
+                }
+
+            } catch (e: Exception) {
+                Log.e("PredictorManager", "Error loading model", e)
+                withContext(Dispatchers.Main) {
+                    isLoaded = false
+                    predictor = null
+                    onLoaded(false) // Сообщаем об ошибке
+                }
+            }
+        }
+    }
+
+    fun releaseModel() {
+        predictor?.close()
+        predictor = null
+        isLoaded = false
+    }
+}
+
 class CameraView @JvmOverloads constructor(
     context: Context,
     private val methodChannel: MethodChannel?,
+    private val messenger: BinaryMessenger,
     attrs: AttributeSet? = null
 ) : FrameLayout(context, attrs), DefaultLifecycleObserver {
 
@@ -72,7 +134,7 @@ class CameraView @JvmOverloads constructor(
 
     // Basics
     private var lifecycleOwner: LifecycleOwner? = null
-    private var modelType: String = "MediaPipeEstimator" // "MMPoseEstimator"  "YOLOPoseEstimator" "MediaPipeEstimator
+    private val modelType: String = MODEL_TYPE
     private val mainScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     private val autoZoom = AutoZoom()
@@ -103,7 +165,7 @@ class CameraView @JvmOverloads constructor(
         post = { action -> post(action) }
     )
     private val progressBarLottieAnimation = LottieAnimation(context, "assets/animation/progress_bar.json")
-
+    private var reusableBitmap: Bitmap? = null
 
     //private var modelLoadCallback: ((Boolean) -> Unit)? = null
 
@@ -148,6 +210,8 @@ class CameraView @JvmOverloads constructor(
     private var sendResultPhotoInd = false
     private var captureRequested = false
     private var resultImageShoot = ResultImageShoot()
+
+    val methodChannelAdd = MethodChannel(messenger, "photo_capture_channel_add")
 
     init {
         removeAllViews()
@@ -219,26 +283,26 @@ class CameraView @JvmOverloads constructor(
     }
 
     fun setModel(callback: ((Boolean) -> Unit)? = null) {
-        Executors.newSingleThreadExecutor().execute {
-            var predictor: BasePredictor
-            if (modelType == "MMPoseEstimator") {
-                predictor = MMPoseEstimator(context)
-            } else if (modelType == "YOLOPoseEstimator") {
-                val modelPath = "yolo11n-pose.tflite"
-                predictor = YOLOPoseEstimator(
-                    context,
-                    modelPath,
-                    CameraViewUtils.loadLabels(),
-                    useGpu = true
-                )
-            } else {
-                predictor = MediaPipeEstimator(context)
-            }
-            post {
-                this.predictor = predictor
+        Log.d(TAG, "setModel start")
+
+        PredictorManager.initPredictor(context) { success ->
+            if (success) {
+                this.predictor = PredictorManager.predictor
+                Log.d(TAG, "setModel end, predictor ${this.predictor}")
+                sendSignalToDart()
                 callback?.invoke(true)
-                Log.d(TAG, "Model loaded successfully")
+            } else {
+                Log.e(TAG, "Failed to load model in PredictorManager")
+                callback?.invoke(false)
             }
+        }
+    }
+
+    private fun sendSignalToDart() {
+        val channel = methodChannelAdd ?: return
+        Log.d(TAG, "sendModelReadySignal")
+        Handler(Looper.getMainLooper()).post {
+            methodChannelAdd.invokeMethod("onModelReady", mapOf("status" to "success"))
         }
     }
 
@@ -320,7 +384,9 @@ class CameraView @JvmOverloads constructor(
             // ---------- ImageAnalysis ----------
             imageAnalysisInit = ImageAnalysis.Builder()
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                .setTargetAspectRatio(AspectRatio.RATIO_4_3)
+                //.setTargetAspectRatio(AspectRatio.RATIO_4_3)
+                .setTargetResolution(android.util.Size(480, 640))
+                .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
                 .build()
 
             cameraExecutor = Executors.newSingleThreadExecutor()
@@ -629,7 +695,7 @@ class CameraView @JvmOverloads constructor(
     }
 
     private fun onFrame(imageProxy: ImageProxy) {
-        if (captureRequested) {
+         if (captureRequested) {
             val state = OverlayState(
                 result = null,
                 refDetectionResult = null,
@@ -646,10 +712,20 @@ class CameraView @JvmOverloads constructor(
             return
         }
 
-        val bitmap = CameraViewUtils.imageProxyToBitmap(imageProxy) ?: run {
+        /*
+        val bitmap = imageProxy.toBitmap() ?: run {
             Log.e(TAG, "Failed to convert ImageProxy to Bitmap")
             return
         }
+         */
+        if (reusableBitmap == null || reusableBitmap!!.width != imageProxy.width || reusableBitmap!!.height != imageProxy.height) {
+            reusableBitmap = Bitmap.createBitmap(
+                imageProxy.width,
+                imageProxy.height,
+                Bitmap.Config.ARGB_8888
+            )
+        }
+        reusableBitmap!!.copyPixelsFromBuffer(imageProxy.planes[0].buffer)
 
         predictor?.let { p ->
             if (!shouldRunInference()) {
@@ -670,12 +746,14 @@ class CameraView @JvmOverloads constructor(
                 // TODO проверить!!!
                 // For camera feed, we typically rotate the bitmap
                 // In landscape mode, we don't rotate, so width/height should match actual bitmap dimensions
+                var tInit = System.nanoTime()
                 val result = if (isLandscape) {
-                    p.predict(bitmap, imageProxy.width, imageProxy.height, rotateForCamera = true, isLandscape = isLandscape, timestamp = imageProxy.imageInfo.timestamp)
+                    p.predict(reusableBitmap!!, imageProxy.width, imageProxy.height, rotateForCamera = true, isLandscape = isLandscape)
                 } else {
                     // In portrait mode, keep the original behavior (h, w)
-                    p.predict(bitmap, imageProxy.height, imageProxy.width, rotateForCamera = true, isLandscape = isLandscape, timestamp = imageProxy.imageInfo.timestamp)
+                    p.predict(reusableBitmap!!, imageProxy.height, imageProxy.width, rotateForCamera = true, isLandscape = isLandscape)
                 }
+                Log.d(TAG, "Prediction time ${(System.nanoTime() - tInit) / 1_000_000.0}")
 
                 if (result.objects.isEmpty() || refDetectionResult!!.objects.isEmpty()) {
                     val state = OverlayState(
@@ -787,7 +865,8 @@ class CameraView @JvmOverloads constructor(
                                     val poseComparisonResult = cosineSimilarity(
                                         refPredictionObj,
                                         currentPredictionObj,
-                                        result.imageShape
+                                        result.imageShape,
+                                        mode = if (modelType == "MediaPipeEstimator") "MediaPipe" else "COCO"
                                     )
                                     compareRes = poseComparisonResult.overallScore
                                     poseComparisonDetails = poseComparisonResult.details
@@ -806,6 +885,8 @@ class CameraView @JvmOverloads constructor(
 
                             if (compareRes != null && compareRes > comparePoseThreshold) {
                                 autoZoom.kpsComparisonDurationCount++
+                            } else {
+                                autoZoom.kpsComparisonDurationCount = 0
                             }
                             if (autoZoom.kpsComparisonDurationCount == autoZoom.kpsComparisonDurationThreshold && !sendResultPhotoInd) {
                                 sendResultPhotoInd = true

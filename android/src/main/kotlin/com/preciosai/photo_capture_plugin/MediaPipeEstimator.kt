@@ -34,8 +34,10 @@ class MediaPipeEstimator(
 
     private lateinit var modelPath: MappedByteBuffer
     private lateinit var poseLandmarker: PoseLandmarker
-    private lateinit var rotatedBitmap: Bitmap
-    private val rotateMatrix: Matrix = Matrix().apply { postRotate(90f) }
+
+    private val rotateMatrix = Matrix()
+    private var reusableBitmap: Bitmap? = null
+    private var reusableCanvas: Canvas? = null
 
     private fun initLandmarkerWithDelegate(delegate: Delegate) {
         val baseOptions = BaseOptions.builder()
@@ -74,6 +76,10 @@ class MediaPipeEstimator(
         }
     }
 
+    override fun close() {
+        poseLandmarker.close()
+    }
+
     private fun loadModelFromFlutterAsset(context: Context, assetName: String): MappedByteBuffer {
         val file = CameraViewUtils.assetFileFromFlutter(context, assetName)
 
@@ -84,23 +90,43 @@ class MediaPipeEstimator(
         }
     }
 
-    override fun predict(bitmap: Bitmap, origWidth: Int, origHeight: Int, rotateForCamera: Boolean, isLandscape: Boolean, timestamp: Long?): InstanceObj {
-        var timestamp_res = timestamp
-        if (timestamp_res == null) timestamp_res = System.nanoTime()
-        val timestampMs = timestamp_res / 1_000_000
+    override fun predict(bitmap: Bitmap, origWidth: Int, origHeight: Int, rotateForCamera: Boolean, isLandscape: Boolean): InstanceObj {
+        t0 = System.nanoTime()
+        val timestampMs = System.nanoTime() / 1_000_000
 
-        rotatedBitmap = if (rotateForCamera) {
-            Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, rotateMatrix, true)
+        val rotatedBitmap = if (rotateForCamera) {
+            val newWidth = bitmap.height
+            val newHeight = bitmap.width
+
+            if (reusableBitmap == null || reusableBitmap!!.width != origWidth || reusableBitmap!!.height != origHeight) {
+                reusableBitmap = Bitmap.createBitmap(origWidth, origHeight, Bitmap.Config.ARGB_8888)
+                reusableCanvas = Canvas(reusableBitmap!!)
+            }
+
+            rotateMatrix.reset()
+            rotateMatrix.postTranslate(-bitmap.width / 2f, -bitmap.height / 2f)
+            rotateMatrix.postRotate(90f)
+            rotateMatrix.postTranslate(newWidth / 2f, newHeight / 2f)
+
+            reusableCanvas!!.drawColor(Color.BLACK, PorterDuff.Mode.CLEAR)
+            reusableCanvas!!.drawBitmap(bitmap, rotateMatrix, null)
+
+            reusableBitmap!!
         } else {
             bitmap
         }
 
         val mpImage = BitmapImageBuilder(rotatedBitmap).build()
-
         val result = poseLandmarker.detectForVideo(mpImage, timestampMs)
+
+        Log.d(TAG, "MediaPipe t3 diff: ${(System.nanoTime() - t3) / 1_000_000.0} ms, t2: $t2")
         updateTiming()
 
-        val prediction = mapToPredictionObj(result, origWidth.toFloat(), origHeight.toFloat())
+        val prediction = mapToPredictionObj(result, rotatedBitmap.width.toFloat(), rotatedBitmap.height.toFloat())
+        val infTime = (System.nanoTime() - t0) / 1_000_000.0
+        Log.d(TAG, "MediaPipe inference time: $infTime ms")
+        Log.d(TAG, "MediaPipe fps: ${if (t4 > 0) (1.0 / t4) else 0.0}")
+
         if (prediction == null) {
             return InstanceObj(
                 imageShape = Size(origWidth.toDouble(), origHeight.toDouble()),
@@ -109,9 +135,6 @@ class MediaPipeEstimator(
                 fps = if (t4 > 0) (1.0 / t4) else 0.0,
             )
         }
-
-        val infTime = (System.nanoTime() - timestampMs) / 1_000_000.0
-        Log.d(TAG, "MediaPipe inference time: $infTime ms")
 
         return InstanceObj(
             imageShape = Size(origWidth.toDouble(), origHeight.toDouble()),
@@ -126,7 +149,6 @@ class MediaPipeEstimator(
         imageWidth: Float,
         imageHeight: Float
     ): PredictionObj? {
-        // Берем первого найденного человека (индекс 0)
         val landmarks = result.landmarks().firstOrNull() ?: return null
 
         val xynList = mutableListOf<Pair<Float, Float>>()
@@ -140,20 +162,17 @@ class MediaPipeEstimator(
 
         var totalScore = 0f
 
-        // 1. Формируем списки точек и ищем крайние значения для BBox
         for (landmark in landmarks) {
             val xn = landmark.x()
             val yn = landmark.y()
             val score = landmark.visibility().orElse(0f)
 
-            // Нормализованные и абсолютные координаты точек
             xynList.add(Pair(xn, yn))
             xyList.add(Pair(xn * imageWidth, yn * imageHeight))
             scoresList.add(score)
 
             totalScore += score
 
-            // Находим границы скелета (в нормализованных координатах)
             if (xn < minXn) minXn = xn
             if (yn < minYn) minYn = yn
             if (xn > maxXn) maxXn = xn
@@ -180,11 +199,10 @@ class MediaPipeEstimator(
             maxYn * imageHeight
         )
 
-        // Средняя уверенность по всем точкам
         val avgScore = totalScore / landmarks.size
 
         val bbox = BBox(
-            clsIndex = 0, // У нас всегда 0 (человек)
+            clsIndex = 0,
             label = "person",
             score = avgScore,
             xywh = xywh,
@@ -197,7 +215,6 @@ class MediaPipeEstimator(
             scores = scoresList
         )
 
-        // 3. Возвращаем итоговый объект
         return PredictionObj(
             bbox = bbox,
             keypoints = keypoints,

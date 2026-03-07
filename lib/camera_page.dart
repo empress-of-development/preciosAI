@@ -22,6 +22,8 @@ class CameraPage extends StatefulWidget {
 class _CameraPageState extends State<CameraPage> {
   final methodChannel = const MethodChannel('photo_capture_channel_default');
 
+  final methodChannelAdd = const MethodChannel('photo_capture_channel_add');
+
   bool _isFrontCamera = false;
 
   // Settings
@@ -31,19 +33,38 @@ class _CameraPageState extends State<CameraPage> {
   bool nightModeOn = false;
   int similarityDegreeOption = 0; // 0, 1 или 2
   Map<String, dynamic>? refPredictionsJsonMap;
+  bool modelLoaded = false;
 
   Future<void> init() async {
-    // TODO wait for the model to initialize normally
-    await Future.delayed(const Duration(milliseconds: 4000));
     if (!mounted) return;
     await readJsonFromAssets();
     pickAndSendRefImage(widget.refImagePath);
   }
 
+  void setupChannelListener() {
+    methodChannelAdd.setMethodCallHandler((MethodCall call) async {
+      switch (call.method) {
+        case 'onModelReady':
+          final args = call.arguments as Map<Object?, Object?>;
+          Logger.info("Kotlin model loading status: Статус: ${args['status']}");
+          modelLoaded = true;
+          break;
+      }
+    });
+  }
+
   @override
   void initState() {
     super.initState();
+    setupChannelListener();
     init();
+  }
+
+  @override
+  void dispose() {
+    methodChannel.setMethodCallHandler(null);
+    methodChannelAdd.setMethodCallHandler(null);
+    super.dispose();
   }
 
   Future<void> readJsonFromAssets() async {
@@ -57,6 +78,10 @@ class _CameraPageState extends State<CameraPage> {
     Uint8List bytes,
     String? assetPredictions,
   ) async {
+    // TODO wait for the model to initialize normally
+    await Future.delayed(const Duration(milliseconds: 200));
+    Logger.info("modelLoaded $modelLoaded");
+    if (!modelLoaded) await Future.delayed(const Duration(milliseconds: 5000));
     try {
       await methodChannel.invokeMethod('ref_frame_predict', {
         'bytes': bytes,

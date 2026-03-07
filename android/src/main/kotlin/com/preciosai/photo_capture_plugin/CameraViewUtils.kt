@@ -34,9 +34,9 @@ data class ZoomState(
 
 data class ThrottleState(
     var lastInferenceTime: Long = 0,
-    val maxFPS: Int? = 10,
+    val maxFPS: Int? = 30,
     var targetFrameInterval: Long? = null, // in nanoseconds
-    val throttleIntervalMs: Int? = 100,
+    val throttleIntervalMs: Int? = 20,
     var throttleInterval: Long? = null // in nanoseconds
 )
 

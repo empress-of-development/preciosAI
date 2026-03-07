@@ -46,6 +46,7 @@ class PhotoCapturePlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCal
 
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         methodChannel.setMethodCallHandler(null)
+        PredictorManager.releaseModel()
         platformViewFactory.dispose()
         Log.d(TAG, "Detached from engine")
     }

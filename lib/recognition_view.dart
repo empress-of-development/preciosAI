@@ -48,24 +48,10 @@ class RecognitionViewState extends State<RecognitionView> {
       );
     }
 
-    // TODO check after YOLOPlugin.kt
-    // Dispose YOLO model instance using viewId as instanceId
+    // TODO check disposing models
+    // Dispose model instance using viewId as instanceId
     // This prevents memory leaks by ensuring the model is released from YOLOInstanceManager
-    if (_platformViewId != null) {
-      Logger.debug(
-        'RecognitionView.dispose() - disposing model instance with viewId: $_viewId',
-      );
-      const MethodChannel('photo_capture_channel_default')
-          .invokeMethod('disposeInstance', {'instanceId': _viewId})
-          .then((_) {
-            Logger.debug(
-              'RecognitionView.dispose() - model instance disposed successfully',
-            );
-          })
-          .catchError((e) {
-            Logger.error('RecognitionView: Error disposing model instance: $e');
-          });
-    }
+    // if (_platformViewId != null) {
 
     Logger.debug(
       'RecognitionView.dispose() completed - calling super.dispose()',

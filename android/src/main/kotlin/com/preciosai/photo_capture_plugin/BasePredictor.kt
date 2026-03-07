@@ -43,5 +43,7 @@ abstract class BasePredictor {
         const val NS_TO_S = 1e-9
     }
 
-    abstract fun predict(bitmap: Bitmap, origWidth: Int, origHeight: Int, rotateForCamera: Boolean = false, isLandscape: Boolean = false, timestamp: Long? = null): InstanceObj
+    abstract fun predict(bitmap: Bitmap, origWidth: Int, origHeight: Int, rotateForCamera: Boolean = false, isLandscape: Boolean = false): InstanceObj
+
+    abstract fun close()
 }

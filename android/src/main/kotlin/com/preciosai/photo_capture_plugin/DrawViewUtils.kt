@@ -227,7 +227,6 @@ class OverlayRenderer @JvmOverloads constructor(private val poseMode: String) {
         state: OverlayState
     ) {
 
-        Log.d(TAG, "captureRequested: ${state.captureRequested}")
         if (state.captureRequested) {
             captureDraw(canvas, width, height)
             return
@@ -300,7 +299,6 @@ class OverlayRenderer @JvmOverloads constructor(private val poseMode: String) {
 
                 if (state.visualizationMode in listOf("skeleton", "skeleton+capsules")) {
                     var skeletonJoints = currentPoseIndexes.skeletonPartially
-                    Log.d(TAG, "skeletonJoints = ${person.keypoints.xyn.size}, poseMode $poseMode")
                     var drawRes = drawLimb(canvas, points, currentPoseIndexes.skeletonUpperBodyIndexes)
                     if (!drawRes) skeletonJoints = currentPoseIndexes.skeletonPartially.plus(currentPoseIndexes.skeletonUpperBody)
 

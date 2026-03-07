@@ -8,6 +8,7 @@ import androidx.lifecycle.LifecycleOwner
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.platform.PlatformView
+import io.flutter.plugin.common.BinaryMessenger
 
 
 class CameraPlatformView(
@@ -16,11 +17,12 @@ class CameraPlatformView(
     creationParams: Map<String?, Any?>?,
     private val methodChannel: MethodChannel?,
     private val factory: CameraPlatformViewFactory,
+    private val messenger: BinaryMessenger,
 ) : PlatformView, MethodChannel.MethodCallHandler {
 
     private val TAG = "CameraPlatformView"
 
-    private val cameraView: CameraView = CameraView(context, methodChannel)
+    private val cameraView: CameraView = CameraView(context, methodChannel, messenger)
     val cameraViewInstance: CameraView get() = cameraView
 
     private val viewUniqueId: String = (creationParams?.get("viewId") as? String)
