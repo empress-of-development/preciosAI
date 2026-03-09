@@ -15,7 +15,7 @@ data class OverlayState(
     val captureRequested: Boolean,
     val arrowAnimationOffset: Float,
     val poseComparisonDetails: Map<String, Float?>? = null,
-    val visualizationMode: String = "skeleton"
+    val visualizationMode: String = "skeleton+capsules"
 )
 
 data class PoseTopology(
@@ -33,7 +33,7 @@ class OverlayRenderer @JvmOverloads constructor(private val poseMode: String) {
 
         private const val TAG = "CameraView - DrawViewUtils"
 
-        private const val confidenceThreshold = 0.2f
+        private const val confidenceThreshold = 0.3f
 
         private const val BOX_CORNER_RADIUS = 12f
 
@@ -125,7 +125,7 @@ class OverlayRenderer @JvmOverloads constructor(private val poseMode: String) {
     private fun captureDraw(canvas: Canvas, width: Float, height: Float) {
         val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.FILL
-            color = Color.argb(200, 0, 0, 255)
+            color = Color.argb(200, 255, 255, 255)
             textSize = 64f
             typeface = Typeface.MONOSPACE
         }

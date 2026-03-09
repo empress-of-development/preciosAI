@@ -169,7 +169,7 @@ class VisualizationSettingsButton extends StatefulWidget {
 class _VisualizationSettingsButtonState extends State<VisualizationSettingsButton> {
   bool _isPanelVisible = false;
 
-  String _selectedOption = "Skeleton";
+  String _selectedOption = "Skeleton+Capsules";
 
   final List<String> _options = [
     "Empty",

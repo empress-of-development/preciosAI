@@ -43,6 +43,7 @@ data class Keypoints(
     var xyn: List<Pair<Float, Float>>,
     @Serializable(with = FloatPairListSerializer::class)
     var xy: List<Pair<Float, Float>>,
+    val zn: List<Float>? = null,
     var scores: List<Float>
 )
 

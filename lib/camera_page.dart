@@ -21,9 +21,10 @@ class CameraPage extends StatefulWidget {
 
 class _CameraPageState extends State<CameraPage> {
   final methodChannel = const MethodChannel('photo_capture_channel_default');
-
   final methodChannelAdd = const MethodChannel('photo_capture_channel_add');
 
+  // TODO костыль!!!
+  String modelType = 'mediapipe';
   bool _isFrontCamera = false;
 
   // Settings
@@ -33,7 +34,14 @@ class _CameraPageState extends State<CameraPage> {
   bool nightModeOn = false;
   int similarityDegreeOption = 0; // 0, 1 или 2
   Map<String, dynamic>? refPredictionsJsonMap;
-  bool modelLoaded = false;
+
+  // Индикатор загруженности модели
+  static bool modelLoaded = false;
+
+  // Текстовые подсказки делаются только для первого кадра в рамках запуска приложения
+  static bool _isFirstVisit = true;
+  bool showStatusMessage = false;
+  String statusText = '';
 
   Future<void> init() async {
     if (!mounted) return;
@@ -46,7 +54,7 @@ class _CameraPageState extends State<CameraPage> {
       switch (call.method) {
         case 'onModelReady':
           final args = call.arguments as Map<Object?, Object?>;
-          Logger.info("Kotlin model loading status: Статус: ${args['status']}");
+          Logger.info("Kotlin model loading status: ${args['status']}");
           modelLoaded = true;
           break;
       }
@@ -69,7 +77,7 @@ class _CameraPageState extends State<CameraPage> {
 
   Future<void> readJsonFromAssets() async {
     final String jsonString = await rootBundle.loadString(
-      'assets/gallery_images/ref_predictions.json',
+      'assets/gallery_images/ref_predictions_$modelType.json',
     );
     refPredictionsJsonMap = jsonDecode(jsonString);
   }
@@ -79,9 +87,15 @@ class _CameraPageState extends State<CameraPage> {
     String? assetPredictions,
   ) async {
     // TODO wait for the model to initialize normally
-    await Future.delayed(const Duration(milliseconds: 200));
-    Logger.info("modelLoaded $modelLoaded");
     if (!modelLoaded) await Future.delayed(const Duration(milliseconds: 5000));
+    setState(() {
+      modelLoaded = true;
+    });
+
+    if (_isFirstVisit) {
+      showHintsSequence();
+      _isFirstVisit = false;
+    }
     try {
       await methodChannel.invokeMethod('ref_frame_predict', {
         'bytes': bytes,
@@ -116,6 +130,34 @@ class _CameraPageState extends State<CameraPage> {
       }
     }
     if (bytes != null) await sendImageToNative(bytes, assetPredictions);
+  }
+
+  Future<void> showHintsSequence() async {
+    final List<String> messages = [
+      'Now you see schematic skeleton of the reference photo',
+      'And a second skeleton that matches your model',
+      "If you don't see it, move the camera a little",
+      'Place the model in the highlighted sector',
+      'Then you need to merge the skeletons using auxiliary color sectors.',
+      'For the perfect photo each of them must be green',
+      'Move the camera slowly and give your model cues',
+      'The zoom will be adjusted automatically, but you can adjust it yourself if necessary',
+    ];
+
+    for (String msg in messages) {
+      if (!mounted) return;
+
+      setState(() {
+        statusText = msg;
+        showStatusMessage = true;
+      });
+
+      await Future.delayed(const Duration(seconds: 4));
+    }
+
+    if (mounted) {
+      setState(() => showStatusMessage = false);
+    }
   }
 
   @override
@@ -356,6 +398,66 @@ class _CameraPageState extends State<CameraPage> {
           const Positioned.fill(child: PoseSimilaritySliderButton()),
           // Кнопка визуализации
           const Positioned.fill(child: VisualizationSettingsButton()),
+
+          if (!modelLoaded)
+            Positioned(
+              top: screenHeight * 0.125,
+              left: 0,
+              right: 0,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    strokeWidth: 3,
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    "Model loading\nWait a second, please",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      shadows: [
+                        Shadow(blurRadius: 10, color: Colors.black54),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+          if (showStatusMessage)
+            Positioned(
+              top: screenHeight * 0.2,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 400),
+                  transitionBuilder: (Widget child, Animation<double> animation) {
+                    return FadeTransition(
+                      opacity: animation,
+                      child: ScaleTransition(scale: animation, child: child),
+                    );
+                  },
+                  child: Container(
+                    key: ValueKey<String>(statusText),
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.7),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      statusText,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.white, fontSize: 16),
+                    ),
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );

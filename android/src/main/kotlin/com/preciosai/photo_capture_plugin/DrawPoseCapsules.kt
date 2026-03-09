@@ -8,6 +8,7 @@ import android.graphics.RectF
 import android.util.Log
 import kotlin.math.atan2
 import kotlin.math.hypot
+import androidx.core.graphics.ColorUtils
 
 
 private data class Bone(val start: Int, val end: Int, val partKey: String)
@@ -18,7 +19,7 @@ class CapsulePoseRenderer @JvmOverloads constructor(private val poseMode: String
     private val strokePaint = Paint().apply {
         isAntiAlias = true
         style = Paint.Style.STROKE
-        strokeWidth = 8f
+        strokeWidth = 4f
     }
 
     // Кисть для полупрозрачной заливки внутри капсулы
@@ -49,10 +50,20 @@ class CapsulePoseRenderer @JvmOverloads constructor(private val poseMode: String
     private val limbs: List<Bone> = limbsConsts[poseMode]!!
 
     private fun getColorForScore(score: Float): Int {
+        val safeScore = score.coerceIn(0f, 1f)
+
         return when {
-            score >= 0.8f -> colorGood
-            score >= 0.5f -> colorWarning
-            else -> colorBad
+            safeScore <= 0.5f -> {
+                val ratio = safeScore / 0.5f
+                ColorUtils.blendARGB(colorBad, colorWarning, ratio)
+            }
+            safeScore <= 0.8f -> {
+                val ratio = (safeScore - 0.5f) / 0.3f
+                ColorUtils.blendARGB(colorWarning, colorGood, ratio)
+            }
+            else -> {
+                colorGood
+            }
         }
     }
 
@@ -86,15 +97,17 @@ class CapsulePoseRenderer @JvmOverloads constructor(private val poseMode: String
         val rect = RectF(-rx, -ry, rx, ry)
 
         strokePaint.color = color
+        strokePaint.alpha = 80
+
         fillPaint.color = color
-        fillPaint.alpha = 70
+        fillPaint.alpha = 40
 
         canvas.save()
         canvas.translate(cx, cy)
         canvas.rotate(angle)
 
         canvas.drawRoundRect(rect, ry, ry, fillPaint)
-        canvas.drawRoundRect(rect, ry, ry, strokePaint)
+        // canvas.drawRoundRect(rect, ry, ry, strokePaint)
 
         canvas.restore()
     }
@@ -114,7 +127,6 @@ class CapsulePoseRenderer @JvmOverloads constructor(private val poseMode: String
                 var color = Color.parseColor("#00E5FF")
                 if (details != null) {
                     val score = details[bone.partKey] ?: 0f
-                    Log.d("CapsulePoseRenderer", "Bone: ${bone.partKey}, Score: $score")
                     color = getColorForScore(score)
                 }
 
@@ -134,6 +146,11 @@ class CapsulePoseRenderer @JvmOverloads constructor(private val poseMode: String
         val leftHip = if (poseMode == "COCO") keypoints[12] else keypoints[24]
         val rightHip = if (poseMode == "COCO") keypoints[11] else keypoints[23]
         val nose = keypoints[0]
+        val leftEar = if (poseMode == "COCO") keypoints[4] else keypoints[8]
+        val rightEar = if (poseMode == "COCO") keypoints[3] else keypoints[7]
+
+        val leftEye = if (poseMode == "COCO") keypoints[2] else keypoints[5]
+        val rightEye = if (poseMode == "COCO") keypoints[1] else keypoints[2]
 
         if (leftShoulder != null && rightShoulder != null &&
             leftHip != null && rightHip != null
@@ -165,25 +182,24 @@ class CapsulePoseRenderer @JvmOverloads constructor(private val poseMode: String
                 capsuleThickness = 80f,
                 gap = 15f
             )
-
-            // Для головы можно использовать показатель глаз или ушей
-            // TODO поменять голову
-            if (nose != null) {
-                var headColor = Color.parseColor("#00E5FF")
-
-                if (details != null) {
-                    headColor = getColorForScore(details["eyes"] ?: 0f)
-                }
-
-                drawCapsule(
-                    canvas = canvas,
-                    p1 = nose,
-                    p2 = neck,
-                    color = headColor,
-                    capsuleThickness = 50f,
-                    gap = 10f
-                )
-            }
         }
+
+        if ((leftEar != null || leftEye != null) && (rightEar != null || rightEye != null)) {
+            var headColor = Color.parseColor("#00E5FF")
+
+            if (details != null) {
+                headColor = getColorForScore(details["eyes"] ?: 0f)
+            }
+
+            drawCapsule(
+                canvas = canvas,
+                p1 = if (leftEar != null) leftEar else leftEye!!,
+                p2 = if (rightEar != null) rightEar else rightEye!!,
+                color = headColor,
+                capsuleThickness = 50f,
+                gap = 10f
+            )
+        }
+
     }
 }

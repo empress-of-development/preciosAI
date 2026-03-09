@@ -153,6 +153,7 @@ class MediaPipeEstimator(
 
         val xynList = mutableListOf<Pair<Float, Float>>()
         val xyList = mutableListOf<Pair<Float, Float>>()
+        // val znList = mutableListOf<Float>()
         val scoresList = mutableListOf<Float>()
 
         var minXn = Float.MAX_VALUE
@@ -166,6 +167,7 @@ class MediaPipeEstimator(
         for (landmark in landmarks) {
             val xn = landmark.x()
             val yn = landmark.y()
+            // val zn = landmark.z()
             val visibility = landmark.visibility().orElse(0f)
             val presence = landmark.presence().orElse(0f)
 
@@ -174,6 +176,7 @@ class MediaPipeEstimator(
 
             xynList.add(Pair(xn, yn))
             xyList.add(Pair(xn * imageWidth, yn * imageHeight))
+            // znList.add(zn)
             scoresList.add(finalScore)
 
             if (finalScore > 0f) {
@@ -197,7 +200,7 @@ class MediaPipeEstimator(
         val skeletonHeightN = maxYn - minYn
 
         val paddingXn = skeletonWidthN * 0.15f
-        val paddingYn = skeletonHeightN * 0.05f
+        val paddingYn = skeletonHeightN * 0.1f
 
         minXn = (minXn - paddingXn).coerceIn(0f, 1f)
         minYn = (minYn - paddingYn).coerceIn(0f, 1f)
@@ -226,6 +229,7 @@ class MediaPipeEstimator(
         val keypoints = Keypoints(
             xyn = xynList,
             xy = xyList,
+            // zn = znList,
             scores = scoresList
         )
 

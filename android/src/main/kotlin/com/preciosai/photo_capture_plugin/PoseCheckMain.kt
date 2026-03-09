@@ -19,152 +19,256 @@ data class PoseComparisonResult(
     val details: Map<String, Float?>
 )
 
-// PoseEvaluator не актуальный
-class PoseEvaluator(
-    private val alpha: Float = 0.2f,
-    private val maxToleranceDegrees: Float = 45f
+
+class PoseComparator(
+    private val mode: String = "MediaPipe",
+    private val confThreshold: Float = 0.3f,
+    private val maxToleranceDegrees: Float = 45f,
+    private val alpha: Float = 0.4f,
+    private val maxMissingFrames: Int = 10 // На сколько кадров замораживаем линию, если она пропала
 ) {
-    // Память для сглаживания кадров
-    private var smoothedOverall: Float? = null
-    private val smoothedDetails = mutableMapOf<String, Float>()
 
-    private fun getAngleBetweenVectors(v1x: Float, v1y: Float, v2x: Float, v2y: Float): Float {
-        val norm1 = hypot(v1x.toDouble(), v1y.toDouble()).toFloat()
-        val norm2 = hypot(v2x.toDouble(), v2y.toDouble()).toFloat()
-        if (norm1 == 0f || norm2 == 0f) return 180f
+    public var previousResult: PoseComparisonResult? = null
+    // Память для счетчика пропущенных кадров по каждой части тела
+    private val missingFramesCount = mutableMapOf<String, Int>()
 
-        val dotProduct = (v1x * v2x) + (v1y * v2y)
-        val cosTheta = (dotProduct / (norm1 * norm2)).coerceIn(-1f, 1f)
-        return Math.toDegrees(acos(cosTheta.toDouble())).toFloat()
+    private val minKeypoints: Int
+    private val fallbackAnchors: List<Pair<Int, Int>>
+    private val complexLimbs: Map<String, Triple<Int, Int, Int>>
+    private val simpleBones: Map<String, Pair<Int, Int>>
+
+    init {
+        if (mode == "COCO") {
+            minKeypoints = 17
+            fallbackAnchors = listOf(Pair(11, 12), Pair(5, 6), Pair(3, 4), Pair(1, 2))
+            complexLimbs = mapOf(
+                "right_hand" to Triple(5, 7, 9), "left_hand" to Triple(6, 8, 10),
+                "right_leg" to Triple(11, 13, 15), "left_leg" to Triple(12, 14, 16)
+            )
+            simpleBones = mapOf(
+                "eyes" to Pair(1, 2), "ears" to Pair(3, 4), "shoulders" to Pair(5, 6),
+                "pelvis" to Pair(11, 12), "right_side" to Pair(5, 11), "left_side" to Pair(6, 12)
+            )
+        } else {
+            minKeypoints = 33
+            fallbackAnchors = listOf(Pair(23, 24), Pair(11, 12), Pair(7, 8), Pair(2, 5))
+            complexLimbs = mapOf(
+                "right_hand" to Triple(11, 13, 15), "left_hand" to Triple(12, 14, 16),
+                "right_leg" to Triple(23, 25, 27), "left_leg" to Triple(24, 26, 28)
+            )
+            simpleBones = mapOf(
+                "eyes" to Pair(2, 5), "ears" to Pair(7, 8), "shoulders" to Pair(11, 12),
+                "pelvis" to Pair(23, 24), "right_side" to Pair(11, 23), "left_side" to Pair(12, 24)
+            )
+        }
     }
 
-    private fun getBoneDirectionDiff(
-        refP1: Pair<Float, Float>, refP2: Pair<Float, Float>,
-        usrP1: Pair<Float, Float>, usrP2: Pair<Float, Float>
-    ): Float {
-        val vRefX = refP2.first - refP1.first
-        val vRefY = refP2.second - refP1.second
-        val vUsrX = usrP2.first - usrP1.first
-        val vUsrY = usrP2.second - usrP1.second
-        return getAngleBetweenVectors(vRefX, vRefY, vUsrX, vUsrY)
+    fun reset() {
+        previousResult = null
+        missingFramesCount.clear()
     }
 
-    private fun getJointAngle(p1: Pair<Float, Float>, p2: Pair<Float, Float>, p3: Pair<Float, Float>): Float {
-        val v1x = p1.first - p2.first
-        val v1y = p1.second - p2.second
-        val v2x = p3.first - p2.first
-        val v2y = p3.second - p2.second
-        return getAngleBetweenVectors(v1x, v1y, v2x, v2y)
-    }
-
-    fun compareAndSmooth(
+    fun compare(
         poseRef: PredictionObj,
         poseUsr: PredictionObj,
-        confThreshold: Float = 0.4f
+        pose2ImageShape: Size
     ): PoseComparisonResult {
 
         val kpRef = poseRef.keypoints
         val kpUsr = poseUsr.keypoints
 
-        if (kpRef.xy.size < 17 || kpUsr.xy.size < 17) {
-            return PoseComparisonResult(smoothedOverall ?: 0f, emptyMap())
+        if (kpRef.xy.size < minKeypoints || kpUsr.xy.size < minKeypoints) {
+            val prev = previousResult
+            if (prev != null && prev.overallScore > 0.05f) {
+                val decay = 0.9f
+                val decayedScore = prev.overallScore * decay
+                val decayedDetails = mutableMapOf<String, Float?>()
+                for ((key, value) in prev.details) {
+                    decayedDetails[key] = if (value != null) {
+                        val newValue = value * decay
+                        if (newValue > 0.05f) newValue else null
+                    } else null
+                }
+                val fadingResult = PoseComparisonResult(decayedScore, decayedDetails)
+                previousResult = fadingResult
+                return fadingResult
+            } else {
+                reset()
+                return PoseComparisonResult(0f, emptyMap())
+            }
         }
 
         val rawDetails = mutableMapOf<String, Float?>()
-        val allScores = mutableListOf<Float>()
+        val refHasLimb = mutableMapOf<String, Boolean>()
 
-        val complexLimbs = mapOf(
-            "left_hand" to Triple(5, 7, 9),
-            "right_hand" to Triple(6, 8, 10),
-            "left_leg" to Triple(11, 13, 15),
-            "right_leg" to Triple(12, 14, 16)
-        )
+        fun getUsrThresh(key: String): Float {
+            val wasVisible = previousResult?.details?.get(key) != null
+            return if (wasVisible) confThreshold * 0.5f else confThreshold
+        }
+
+        val use3D = false
+        fun getZ(kp: Keypoints, idx: Int): Float {
+            if (!use3D) return 0f
+            return kp.zn!![idx] * pose2ImageShape.width.toFloat()
+        }
+
+        fun getBoneDirectionDiff(idx1: Int, idx2: Int): Float {
+            return getAngleBetweenVectors(
+                kpRef.xy[idx2].first - kpRef.xy[idx1].first, kpRef.xy[idx2].second - kpRef.xy[idx1].second, 0f,
+                kpUsr.xy[idx2].first - kpUsr.xy[idx1].first, kpUsr.xy[idx2].second - kpUsr.xy[idx1].second, 0f
+            )
+        }
+
+        fun getJointAngle(kp: Keypoints, idx1: Int, idx2: Int, idx3: Int): Float {
+            return getAngleBetweenVectors(
+                kp.xy[idx1].first - kp.xy[idx2].first, kp.xy[idx1].second - kp.xy[idx2].second, getZ(kp, idx1) - getZ(kp, idx2),
+                kp.xy[idx3].first - kp.xy[idx2].first, kp.xy[idx3].second - kp.xy[idx2].second, getZ(kp, idx3) - getZ(kp, idx2)
+            )
+        }
+
+        val maxGlobalShiftTolerance = 0.15f
+        val aspectRatio = pose2ImageShape.width.toFloat() / pose2ImageShape.height.toFloat()
+
+        var anchorFoundInRef = false
+        var anchorScore: Float? = null
+
+        for ((idx1, idx2) in fallbackAnchors) {
+            val refValid = kpRef.scores.getOrElse(idx1) { 0f } >= confThreshold &&
+                    kpRef.scores.getOrElse(idx2) { 0f } >= confThreshold
+            if (refValid) {
+                anchorFoundInRef = true
+                val usrThresh = getUsrThresh("location")
+                val usrValid = kpUsr.scores.getOrElse(idx1) { 0f } >= usrThresh &&
+                        kpUsr.scores.getOrElse(idx2) { 0f } >= usrThresh
+                if (usrValid) {
+                    val refX = (kpRef.xyn[idx1].first + kpRef.xyn[idx2].first) / 2f
+                    val refY = (kpRef.xyn[idx1].second + kpRef.xyn[idx2].second) / 2f
+                    val usrX = (kpUsr.xyn[idx1].first + kpUsr.xyn[idx2].first) / 2f
+                    val usrY = (kpUsr.xyn[idx1].second + kpUsr.xyn[idx2].second) / 2f
+
+                    val displacement = hypot((refX - usrX).toDouble(), ((refY - usrY) / aspectRatio).toDouble()).toFloat()
+                    anchorScore = (1f - (displacement / maxGlobalShiftTolerance)).coerceIn(0f, 1f)
+                    break // Нашли совпадение
+                }
+            }
+        }
+        refHasLimb["location"] = anchorFoundInRef
+        rawDetails["location"] = anchorScore
 
         for ((limbName, indices) in complexLimbs) {
             val (idx1, idx2, idx3) = indices
+            val refValid = kpRef.scores.getOrElse(idx1) { 0f } >= confThreshold &&
+                    kpRef.scores.getOrElse(idx2) { 0f } >= confThreshold &&
+                    kpRef.scores.getOrElse(idx3) { 0f } >= confThreshold
 
-            // Проверяем видимость точек
-            if (kpRef.scores.getOrElse(idx1) { 0f } < confThreshold ||
-                kpRef.scores.getOrElse(idx2) { 0f } < confThreshold ||
-                kpRef.scores.getOrElse(idx3) { 0f } < confThreshold ||
-                kpUsr.scores.getOrElse(idx1) { 0f } < confThreshold ||
-                kpUsr.scores.getOrElse(idx2) { 0f } < confThreshold ||
-                kpUsr.scores.getOrElse(idx3) { 0f } < confThreshold) {
+            refHasLimb[limbName] = refValid
+
+            if (!refValid) {
+                rawDetails[limbName] = null
                 continue
             }
 
-            // Ошибка направления костей
-            val bone1Diff = getBoneDirectionDiff(kpRef.xy[idx1], kpRef.xy[idx2], kpUsr.xy[idx1], kpUsr.xy[idx2])
-            val bone2Diff = getBoneDirectionDiff(kpRef.xy[idx2], kpRef.xy[idx3], kpUsr.xy[idx2], kpUsr.xy[idx3])
+            val usrThresh = getUsrThresh(limbName)
+            val usrValid = kpUsr.scores.getOrElse(idx1) { 0f } >= usrThresh &&
+                    kpUsr.scores.getOrElse(idx2) { 0f } >= usrThresh &&
+                    kpUsr.scores.getOrElse(idx3) { 0f } >= usrThresh
 
-            // Ошибка сгиба сустава
-            val jointRefAngle = getJointAngle(kpRef.xy[idx1], kpRef.xy[idx2], kpRef.xy[idx3])
-            val jointUsrAngle = getJointAngle(kpUsr.xy[idx1], kpUsr.xy[idx2], kpUsr.xy[idx3])
-            val jointDiff = abs(jointRefAngle - jointUsrAngle)
+            if (!usrValid) {
+                rawDetails[limbName] = null
+                continue
+            }
 
-            // Находим самую грубую ошибку
-            val worstErrorDegrees = maxOf(bone1Diff, bone2Diff, jointDiff)
-
-            // Переводим ошибку в процент совпадения (0.0 - 1.0)
-            val score = (1f - (worstErrorDegrees / maxToleranceDegrees)).coerceIn(0f, 1f)
-
-            rawDetails[limbName] = score
-            allScores.add(score)
+            val worstError = maxOf(
+                getBoneDirectionDiff(idx1, idx2),
+                getBoneDirectionDiff(idx2, idx3),
+                kotlin.math.abs(getJointAngle(kpRef, idx1, idx2, idx3) - getJointAngle(kpUsr, idx1, idx2, idx3))
+            )
+            rawDetails[limbName] = (1f - (worstError / maxToleranceDegrees)).coerceIn(0f, 1f)
         }
-
-        val simpleBones = mapOf(
-            "eyes" to Pair(1, 2),
-            "ears" to Pair(3, 4),
-            "shoulders" to Pair(5, 6),
-            "pelvis" to Pair(11, 12),
-            "left_side" to Pair(5, 11),
-            "right_side" to Pair(6, 12)
-        )
 
         for ((boneName, indices) in simpleBones) {
             val (idx1, idx2) = indices
+            val refValid = kpRef.scores.getOrElse(idx1) { 0f } >= confThreshold &&
+                    kpRef.scores.getOrElse(idx2) { 0f } >= confThreshold
 
-            if (kpRef.scores.getOrElse(idx1) { 0f } < confThreshold ||
-                kpRef.scores.getOrElse(idx2) { 0f } < confThreshold ||
-                kpUsr.scores.getOrElse(idx1) { 0f } < confThreshold ||
-                kpUsr.scores.getOrElse(idx2) { 0f } < confThreshold) {
+            refHasLimb[boneName] = refValid
+
+            if (!refValid) {
+                rawDetails[boneName] = null
                 continue
             }
 
-            val boneDiff = getBoneDirectionDiff(kpRef.xy[idx1], kpRef.xy[idx2], kpUsr.xy[idx1], kpUsr.xy[idx2])
-            val score = (1f - (boneDiff / maxToleranceDegrees)).coerceIn(0f, 1f)
+            val usrThresh = getUsrThresh(boneName)
+            val usrValid = kpUsr.scores.getOrElse(idx1) { 0f } >= usrThresh &&
+                    kpUsr.scores.getOrElse(idx2) { 0f } >= usrThresh
 
-            rawDetails[boneName] = score
-            allScores.add(score)
+            if (!usrValid) {
+                rawDetails[boneName] = null
+                continue
+            }
+
+            val boneDiff = getBoneDirectionDiff(idx1, idx2)
+            rawDetails[boneName] = (1f - (boneDiff / maxToleranceDegrees)).coerceIn(0f, 1f)
         }
 
-        val rawOverall = if (allScores.isNotEmpty()) allScores.average().toFloat() else 0f
-
-        val finalOverall = if (smoothedOverall == null) {
-            rawOverall
-        } else {
-            (alpha * rawOverall) + ((1f - alpha) * smoothedOverall!!)
-        }
-        smoothedOverall = finalOverall
-
+        val prev = previousResult
         val finalDetails = mutableMapOf<String, Float?>()
-        for ((part, rawScore) in rawDetails) {
-            if (rawScore != null) {
-                val prevScore = smoothedDetails[part]
-                val newScore = if (prevScore == null) {
-                    rawScore
-                } else {
-                    (alpha * rawScore) + ((1f - alpha) * prevScore)
-                }
-                smoothedDetails[part] = newScore
-                finalDetails[part] = newScore
+        val allKeys = listOf("location") + complexLimbs.keys + simpleBones.keys
+
+        for (key in allKeys) {
+            val isRequiredByRef = refHasLimb[key] ?: false
+            val currentValue = rawDetails[key]
+            val prevValue = prev?.details?.get(key)
+
+            if (!isRequiredByRef) {
+                finalDetails[key] = null
+                missingFramesCount[key] = 0
             } else {
-                smoothedDetails.remove(part)
-                finalDetails[part] = null
+                if (currentValue != null) {
+                    missingFramesCount[key] = 0
+                    finalDetails[key] = if (prevValue != null) {
+                        (alpha * currentValue) + ((1f - alpha) * prevValue)
+                    } else currentValue
+                } else {
+                    val missed = missingFramesCount.getOrElse(key) { 0 } + 1
+                    missingFramesCount[key] = missed
+
+                    if (missed <= maxMissingFrames && prevValue != null) {
+                        finalDetails[key] = prevValue
+                    } else {
+                        val penaltyValue = (prevValue ?: 0f) * 0.8f
+                        finalDetails[key] = if (penaltyValue > 0.05f) penaltyValue else 0f
+                    }
+                }
             }
         }
 
-        return PoseComparisonResult(finalOverall, finalDetails)
+        val activeScores = finalDetails.values.filterNotNull()
+        val finalOverallScore = if (activeScores.isNotEmpty()) {
+            val averageScore = activeScores.average().toFloat()
+            val minScore = activeScores.minOrNull() ?: 0f
+            val penaltyWeight = 0.35f
+            (averageScore * (1f - penaltyWeight)) + (minScore * penaltyWeight)
+        } else {
+            0f
+        }
+
+        val finalResult = PoseComparisonResult(finalOverallScore, finalDetails)
+        previousResult = finalResult
+        return finalResult
+    }
+
+    private fun getAngleBetweenVectors(
+        v1x: Float, v1y: Float, v1z: Float,
+        v2x: Float, v2y: Float, v2z: Float
+    ): Float {
+        val norm1 = sqrt(v1x * v1x + v1y * v1y + v1z * v1z)
+        val norm2 = sqrt(v2x * v2x + v2y * v2y + v2z * v2z)
+        if (norm1 == 0f || norm2 == 0f) return 180f
+
+        val dotProduct = (v1x * v2x) + (v1y * v2y) + (v1z * v2z)
+        val cosTheta = (dotProduct / (norm1 * norm2)).coerceIn(-1f, 1f)
+        return Math.toDegrees(acos(cosTheta.toDouble())).toFloat()
     }
 }
 
@@ -185,6 +289,20 @@ fun cosineSimilarity(
     val minKeypoints = if (mode == "COCO") 17 else 33
     if (kpRef.xy.size < minKeypoints || kpUsr.xy.size < minKeypoints) {
         return PoseComparisonResult(0f, details)
+    }
+
+    /*
+    val use3D = kpRef.zn != null && kpRef.zn.isNotEmpty() &&
+            kpUsr.zn != null && kpUsr.zn.isNotEmpty()
+     */
+    val use3D = false
+
+    // Вспомогательная функция: достает Z и масштабирует его до пикселей
+    // сейчас 3d не используется
+    fun getZ(kp: Keypoints, idx: Int): Float {
+        if (!use3D) return 0f
+        val zWeight = 0.3f
+        return kp.zn!![idx] * pose2ImageShape.width.toFloat()
     }
 
     val fallbackAnchors: List<Pair<Int, Int>>
@@ -235,27 +353,38 @@ fun cosineSimilarity(
         )
     }
 
-    fun getAngleBetweenVectors(v1x: Float, v1y: Float, v2x: Float, v2y: Float): Float {
-        val norm1 = hypot(v1x.toDouble(), v1y.toDouble()).toFloat()
-        val norm2 = hypot(v2x.toDouble(), v2y.toDouble()).toFloat()
+    fun getAngleBetweenVectors(
+        v1x: Float, v1y: Float, v1z: Float,
+        v2x: Float, v2y: Float, v2z: Float
+    ): Float {
+        val norm1 = kotlin.math.sqrt(v1x * v1x + v1y * v1y + v1z * v1z)
+        val norm2 = kotlin.math.sqrt(v2x * v2x + v2y * v2y + v2z * v2z)
         if (norm1 == 0f || norm2 == 0f) return 180f
-        val dotProduct = (v1x * v2x) + (v1y * v2y)
+
+        val dotProduct = (v1x * v2x) + (v1y * v2y) + (v1z * v2z)
         val cosTheta = (dotProduct / (norm1 * norm2)).coerceIn(-1f, 1f)
-        return Math.toDegrees(acos(cosTheta.toDouble())).toFloat()
+        return Math.toDegrees(kotlin.math.acos(cosTheta.toDouble())).toFloat()
     }
 
-    fun getBoneDirectionDiff(p1Ref: Pair<Float, Float>, p2Ref: Pair<Float, Float>,
-                             p1Usr: Pair<Float, Float>, p2Usr: Pair<Float, Float>): Float {
+    fun getBoneDirectionDiff(idx1: Int, idx2: Int): Float {
         return getAngleBetweenVectors(
-            p2Ref.first - p1Ref.first, p2Ref.second - p1Ref.second,
-            p2Usr.first - p1Usr.first, p2Usr.second - p1Usr.second
+            kpRef.xy[idx2].first - kpRef.xy[idx1].first,
+            kpRef.xy[idx2].second - kpRef.xy[idx1].second,
+            0f,
+            kpUsr.xy[idx2].first - kpUsr.xy[idx1].first,
+            kpUsr.xy[idx2].second - kpUsr.xy[idx1].second,
+            0f
         )
     }
 
-    fun getJointAngle(p1: Pair<Float, Float>, p2: Pair<Float, Float>, p3: Pair<Float, Float>): Float {
+    fun getJointAngle(kp: Keypoints, idx1: Int, idx2: Int, idx3: Int): Float {
         return getAngleBetweenVectors(
-            p1.first - p2.first, p1.second - p2.second,
-            p3.first - p2.first, p3.second - p2.second
+            kp.xy[idx1].first - kp.xy[idx2].first,
+            kp.xy[idx1].second - kp.xy[idx2].second,
+            getZ(kp, idx1) - getZ(kp, idx2),
+            kp.xy[idx3].first - kp.xy[idx2].first,
+            kp.xy[idx3].second - kp.xy[idx2].second,
+            getZ(kp, idx3) - getZ(kp, idx2)
         )
     }
 
@@ -298,7 +427,6 @@ fun cosineSimilarity(
 
     for ((limbName, indices) in complexLimbs) {
         val (idx1, idx2, idx3) = indices
-
         if (kpRef.scores.getOrElse(idx1) { 0f } < confThreshold ||
             kpRef.scores.getOrElse(idx2) { 0f } < confThreshold ||
             kpRef.scores.getOrElse(idx3) { 0f } < confThreshold ||
@@ -310,11 +438,12 @@ fun cosineSimilarity(
             continue
         }
 
-        val bone1Diff = getBoneDirectionDiff(kpRef.xy[idx1], kpRef.xy[idx2], kpUsr.xy[idx1], kpUsr.xy[idx2])
-        val bone2Diff = getBoneDirectionDiff(kpRef.xy[idx2], kpRef.xy[idx3], kpUsr.xy[idx2], kpUsr.xy[idx3])
-        val jointRefAngle = getJointAngle(kpRef.xy[idx1], kpRef.xy[idx2], kpRef.xy[idx3])
-        val jointUsrAngle = getJointAngle(kpUsr.xy[idx1], kpUsr.xy[idx2], kpUsr.xy[idx3])
-        val jointDiff = abs(jointRefAngle - jointUsrAngle)
+        val bone1Diff = getBoneDirectionDiff(idx1, idx2)
+        val bone2Diff = getBoneDirectionDiff(idx2, idx3)
+        val jointRefAngle = getJointAngle(kpRef, idx1, idx2, idx3)
+        val jointUsrAngle = getJointAngle(kpUsr, idx1, idx2, idx3)
+
+        val jointDiff = kotlin.math.abs(jointRefAngle - jointUsrAngle)
 
         val worstErrorDegrees = maxOf(bone1Diff, bone2Diff, jointDiff)
         val score = (1f - (worstErrorDegrees / maxToleranceDegrees)).coerceIn(0f, 1f)
@@ -336,7 +465,7 @@ fun cosineSimilarity(
             continue
         }
 
-        val boneDiff = getBoneDirectionDiff(kpRef.xy[idx1], kpRef.xy[idx2], kpUsr.xy[idx1], kpUsr.xy[idx2])
+        val boneDiff = getBoneDirectionDiff(idx1, idx2)
         val score = (1f - (boneDiff / maxToleranceDegrees)).coerceIn(0f, 1f)
 
         details[boneName] = score
@@ -347,7 +476,6 @@ fun cosineSimilarity(
         val averageScore = allScores.average().toFloat()
         val minScore = allScores.minOrNull() ?: 0f
 
-        // штраф за самую несовпадающую часть
         val penaltyWeight = 0.35f
         (averageScore * (1f - penaltyWeight)) + (minScore * penaltyWeight)
     } else {

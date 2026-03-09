@@ -41,7 +41,7 @@ flutter:
     - assets/gallery_images/full_body/
     - assets/gallery_images/medium_shot/
     - assets/gallery_images/portrait/
-    - assets/gallery_images/ref_predictions.json
+    - assets/gallery_images/
     - assets/icons/
     - assets/audio/
     - assets/animation/
