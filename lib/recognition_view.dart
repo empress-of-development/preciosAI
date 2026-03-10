@@ -29,6 +29,12 @@ class RecognitionViewState extends State<RecognitionView> {
   void initState() {
     super.initState();
 
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
+
     final controlChannelName =
         'com.preciosai.photo_capture_plugin/controlChannel_$_viewId';
     _methodChannel = MethodChannel(controlChannelName);
@@ -50,7 +56,7 @@ class RecognitionViewState extends State<RecognitionView> {
 
     // TODO check disposing models
     // Dispose model instance using viewId as instanceId
-    // This prevents memory leaks by ensuring the model is released from YOLOInstanceManager
+    // This prevents memory leaks by ensuring the model is released
     // if (_platformViewId != null) {
 
     Logger.debug(

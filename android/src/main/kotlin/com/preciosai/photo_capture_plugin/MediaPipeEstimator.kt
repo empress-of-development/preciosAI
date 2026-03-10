@@ -90,7 +90,7 @@ class MediaPipeEstimator(
         }
     }
 
-    override fun predict(bitmap: Bitmap, origWidth: Int, origHeight: Int, rotateForCamera: Boolean, isLandscape: Boolean): InstanceObj {
+    override fun predict(bitmap: Bitmap, origWidth: Int, origHeight: Int, rotateForCamera: Boolean, isLandscape: Boolean, rotationDegrees: Int): InstanceObj {
         t0 = System.nanoTime()
         val timestampMs = System.nanoTime() / 1_000_000
 
@@ -105,7 +105,7 @@ class MediaPipeEstimator(
 
             rotateMatrix.reset()
             rotateMatrix.postTranslate(-bitmap.width / 2f, -bitmap.height / 2f)
-            rotateMatrix.postRotate(90f)
+            rotateMatrix.postRotate(rotationDegrees.toFloat())
             rotateMatrix.postTranslate(newWidth / 2f, newHeight / 2f)
 
             reusableCanvas!!.drawColor(Color.BLACK, PorterDuff.Mode.CLEAR)

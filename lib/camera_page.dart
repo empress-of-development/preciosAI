@@ -87,7 +87,7 @@ class _CameraPageState extends State<CameraPage> {
     String? assetPredictions,
   ) async {
     // TODO wait for the model to initialize normally
-    if (!modelLoaded) await Future.delayed(const Duration(milliseconds: 5000));
+    if (!modelLoaded) await Future.delayed(const Duration(milliseconds: 6000));
     setState(() {
       modelLoaded = true;
     });
@@ -142,6 +142,7 @@ class _CameraPageState extends State<CameraPage> {
       'For the perfect photo each of them must be green',
       'Move the camera slowly and give your model cues',
       'The zoom will be adjusted automatically, but you can adjust it yourself if necessary',
+      'Currently, only one person can be photographed'
     ];
 
     for (String msg in messages) {
@@ -160,6 +161,20 @@ class _CameraPageState extends State<CameraPage> {
     }
   }
 
+  Future<void> _switchCamera() async {
+    setState(() {
+      _isFrontCamera = !_isFrontCamera;
+    });
+
+    try {
+      await methodChannel.invokeMethod('switchCamera', {
+        'isFront': _isFrontCamera,
+      });
+    } on PlatformException catch (e) {
+      Logger.info('Error in camera switching: ${e.message}');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final orientation = MediaQuery.of(context).orientation;
@@ -168,8 +183,9 @@ class _CameraPageState extends State<CameraPage> {
     final screenWidth = MediaQuery.of(context).size.width;
 
     return Scaffold(
+      backgroundColor: Colors.black,
       body: Stack(
-        fit: StackFit.expand,
+        // fit: StackFit.expand,
         children: [
           RecognitionView(
             key: const ValueKey('detection_view_main'),
@@ -180,6 +196,7 @@ class _CameraPageState extends State<CameraPage> {
           ExpandableCornerImage(imagePath: widget.refImagePath),
 
           // Settings
+          /*
           Positioned(
             left: isLandscape ? 32 : 16,
             bottom:
@@ -197,6 +214,7 @@ class _CameraPageState extends State<CameraPage> {
               ),
             ),
           ),
+           */
 
           // TODO fix camera switch
           // Camera switch
@@ -210,11 +228,7 @@ class _CameraPageState extends State<CameraPage> {
               child: IconButton(
                 icon: const Icon(Icons.flip_camera_ios, color: Colors.white),
                 onPressed: () {
-                  setState(() {
-                    _isFrontCamera = !_isFrontCamera;
-                    // Reset zoom level when switching to front camera
-                  });
-                  //controller.switchCamera();
+                  _switchCamera();
                 },
               ),
             ),

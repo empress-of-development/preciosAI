@@ -124,7 +124,7 @@ class YOLOPoseEstimator(
         return fileChannel.map(java.nio.channels.FileChannel.MapMode.READ_ONLY, startOffset, declaredLength)
     }
 
-    override fun predict(bitmap: Bitmap, origWidth: Int, origHeight: Int, rotateForCamera: Boolean, isLandscape: Boolean): InstanceObj {
+    override fun predict(bitmap: Bitmap, origWidth: Int, origHeight: Int, rotateForCamera: Boolean, isLandscape: Boolean, rotationDegrees: Int): InstanceObj {
         t0 = System.nanoTime()
         val tensorImage = TensorImage(DataType.FLOAT32)
         tensorImage.load(bitmap)

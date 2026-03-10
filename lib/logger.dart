@@ -5,7 +5,7 @@ enum LogLevel { debug, info, warning, error }
 class Logger {
   const Logger._();
 
-  static const _tag = '[YOLO]';
+  static const _tag = '[PhotoCapture]';
 
   static void debug(String message) {
     _log(LogLevel.debug, message);

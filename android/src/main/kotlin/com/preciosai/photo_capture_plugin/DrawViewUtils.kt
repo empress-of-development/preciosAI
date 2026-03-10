@@ -236,10 +236,18 @@ class OverlayRenderer @JvmOverloads constructor(private val poseMode: String) {
 
         val resWidth: Float = state.result.imageShape.width.toFloat()
         val resHeight: Float = state.result.imageShape.height.toFloat()
-        val frameWidth: Float = width.toFloat()
-        val frameHeight: Float = width.toFloat() * 640f / 480f //TODO: костыль!!!
 
-        val topBorder = (height.toFloat() - frameHeight) / 2f
+        var frameWidth: Float = width.toFloat()
+        var frameHeight: Float = height.toFloat()
+        var topBorder = 0f
+        var leftBorder = 0f
+        if (frameHeight > frameWidth) {
+            frameHeight = width.toFloat() * resHeight / resWidth
+            topBorder = (height.toFloat() - frameHeight) / 2f
+        } else {
+            frameWidth = height.toFloat() * resWidth / resHeight
+            leftBorder = (width.toFloat() - frameWidth) / 2f
+        }
 
         val scale: Float = max(frameWidth / resWidth, frameHeight / resHeight)
 
@@ -253,13 +261,23 @@ class OverlayRenderer @JvmOverloads constructor(private val poseMode: String) {
                 color = Color.argb(state.rectAlpha, 0, 0, 255) // синий с меняющейся прозрачностью
             }
             for (refPred in state.refDetectionResult!!.objects) {
-                canvas.drawRect(
-                    refPred.bbox.xywhn.left * resWidth * scale + dx,
-                    topBorder + refPred.bbox.xywhn.top * resHeight * scale + dy,
-                    refPred.bbox.xywhn.right * resWidth * scale + dx,
-                    topBorder + refPred.bbox.xywhn.bottom * resHeight * scale + dy,
-                    paint
-                )
+                if (refPred.bbox.xywhnCorrected == null) {
+                    canvas.drawRect(
+                        leftBorder + refPred.bbox.xywhn.left * resWidth * scale + dx,
+                        topBorder + refPred.bbox.xywhn.top * resHeight * scale + dy,
+                        leftBorder + refPred.bbox.xywhn.right * resWidth * scale + dx,
+                        topBorder + refPred.bbox.xywhn.bottom * resHeight * scale + dy,
+                        paint
+                    )
+                } else {
+                    canvas.drawRect(
+                        leftBorder + refPred.bbox.xywhnCorrected!!.left * resWidth * scale + dx,
+                        topBorder + refPred.bbox.xywhnCorrected!!.top * resHeight * scale + dy,
+                        leftBorder + refPred.bbox.xywhnCorrected!!.right * resWidth * scale + dx,
+                        topBorder + refPred.bbox.xywhnCorrected!!.bottom * resHeight * scale + dy,
+                        paint
+                    )
+                }
             }
         }
 
@@ -280,9 +298,15 @@ class OverlayRenderer @JvmOverloads constructor(private val poseMode: String) {
                 val points = arrayOfNulls<PointF>(person.keypoints.xyn.size)
                 for (i in person.keypoints.xyn.indices) {
                     if (person.keypoints.scores[i] > confidenceThreshold && i !in currentPoseIndexes.skeletonExcludedIndexes) {
-                        val pxCam = person.keypoints.xyn[i].first * resWidth
-                        val pyCam = person.keypoints.xyn[i].second * resHeight
-                        var px = pxCam * scale + dx
+                        var pxCam = person.keypoints.xyn[i].first * resWidth
+                        var pyCam = person.keypoints.xyn[i].second * resHeight
+
+                        if (person.keypoints.xynCorrected != null) {
+                            pxCam = person.keypoints.xynCorrected!![i].first * resWidth
+                            pyCam = person.keypoints.xynCorrected!![i].second * resHeight
+                        }
+
+                        var px = leftBorder + pxCam * scale + dx
                         var py = topBorder + pyCam * scale + dy
 
                         // For front camera pose, apply horizontal flip
@@ -326,9 +350,9 @@ class OverlayRenderer @JvmOverloads constructor(private val poseMode: String) {
 
         for (person in state.result.objects) {
             // BBox
-            var left = person.bbox.xywh.left * scale + dx
+            var left = leftBorder + person.bbox.xywh.left * scale + dx
             var top = topBorder + person.bbox.xywh.top * scale + dy
-            var right = person.bbox.xywh.right * scale + dx
+            var right = leftBorder + person.bbox.xywh.right * scale + dx
             var bottom = topBorder + person.bbox.xywh.bottom * scale + dy
 
             // Flip horizontally for front camera

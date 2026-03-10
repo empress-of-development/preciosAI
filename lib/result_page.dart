@@ -319,63 +319,47 @@ class _ComparisonPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final paint = Paint();
 
-    // для сравнения кадр обрезается по форме первого изображения
-    // возможно, стоит поменять
     final beforeSize = Size(before.width.toDouble(), before.height.toDouble());
     final afterSize = Size(after.width.toDouble(), after.height.toDouble());
 
-    final fitted = applyBoxFit(BoxFit.contain, beforeSize, size);
+    final fittedBefore = applyBoxFit(BoxFit.contain, beforeSize, size);
+    final fittedAfter = applyBoxFit(BoxFit.contain, afterSize, size);
 
-    final dstRect = Alignment.center.inscribe(
-      fitted.destination,
+    final dstRectBefore = Alignment.center.inscribe(
+      fittedBefore.destination,
+      Offset.zero & size,
+    );
+    final dstRectAfter = Alignment.center.inscribe(
+      fittedAfter.destination,
       Offset.zero & size,
     );
 
     final srcRectBefore = Offset.zero & beforeSize;
+    final srcRectAfter = Offset.zero & afterSize;
 
-    final targetAspect = beforeSize.width / beforeSize.height;
+    canvas.drawImageRect(before, srcRectBefore, dstRectBefore, paint);
 
-    final srcRectAfter = _centerCrop(afterSize, targetAspect);
-
-    canvas.drawImageRect(before, srcRectBefore, dstRect, paint);
     canvas.save();
+
+    final clipWidth = size.width * divider;
     canvas.clipRect(
-      Rect.fromLTWH(
-        dstRect.left,
-        dstRect.top,
-        dstRect.width * divider,
-        dstRect.height,
-      ),
+      Rect.fromLTWH(0, 0, clipWidth, size.height),
     );
-    canvas.drawImageRect(after, srcRectAfter, dstRect, paint);
+
+    canvas.drawImageRect(after, srcRectAfter, dstRectAfter, paint);
     canvas.restore();
 
-    final dx = dstRect.left + dstRect.width * divider;
-
     canvas.drawRect(
-      Rect.fromLTWH(dx - 1, dstRect.top, 2, dstRect.height),
+      Rect.fromLTWH(clipWidth - 1, 0, 2, size.height),
       Paint()..color = Colors.white,
     );
-  }
-
-  Rect _centerCrop(Size src, double targetAspect) {
-    final srcAspect = src.width / src.height;
-
-    if (srcAspect > targetAspect) {
-      final newWidth = src.height * targetAspect;
-      final dx = (src.width - newWidth) / 2;
-      return Rect.fromLTWH(dx, 0, newWidth, src.height);
-    } else {
-      final newHeight = src.width / targetAspect;
-      final dy = (src.height - newHeight) / 2;
-      return Rect.fromLTWH(0, dy, src.width, newHeight);
-    }
   }
 
   @override
   bool shouldRepaint(covariant _ComparisonPainter old) =>
       old.divider != divider || old.before != before || old.after != after;
 }
+
 
 class _ZoomableComparison extends StatefulWidget {
   final Uint8List before;

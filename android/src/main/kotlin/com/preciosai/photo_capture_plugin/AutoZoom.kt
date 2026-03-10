@@ -35,7 +35,10 @@ class AutoZoom {
 
     private fun avg(obj: PredictionObj, kpsIdxs: List<Int>): Pair<Float, Float>? {
         // TODO Сделать несколько объектов!
-        val mean = obj.keypoints.xyn.slice(kpsIdxs)
+        var xyn = obj.keypoints.xyn
+        if (obj.keypoints.xynCorrected != null) xyn = obj.keypoints.xynCorrected!!
+
+        val mean = xyn.slice(kpsIdxs)
             .zip(obj.keypoints.scores.slice(kpsIdxs))
             .filter { (_, v) -> v > confidenceThreshold }
             .map { (x, _) -> x }
@@ -81,17 +84,19 @@ class AutoZoom {
 
     private fun getZoomData(obj: PredictionObj?): ZoomData? {
         if (obj == null || obj.keypoints == null) return null
+        var bboxXywhn = obj.bbox.xywhn
+        if (obj.bbox.xywhnCorrected != null) bboxXywhn = obj.bbox.xywhnCorrected!!
 
         var filtered = getBodyPoints(obj).withIndex().filter { it.value != null }
         if (filtered.size < 2) return null
         val limitingPoints = filtered.minByOrNull { it.value!!.second } to filtered.maxByOrNull { it.value!!.second }
 
         // bodyHeight - высота тела от высшей точки бокса до нижней из ключевых точек
-        val bodyHeight = limitingPoints.second!!.value!!.second - obj.bbox.xywhn.top // limitingPoints.first!!.value!!.second - надо бы глаза тоже править
+        val bodyHeight = limitingPoints.second!!.value!!.second - bboxXywhn.top // limitingPoints.first!!.value!!.second - надо бы глаза тоже править
         // addBottomRatio - нижняя часть между боксом и нижней ключевой точкой
-        val addBottomRatio = 1 - bodyHeight / obj.bbox.xywhn.height()
+        val addBottomRatio = 1 - bodyHeight / bboxXywhn.height()
 
-        val heightRatio = obj.bbox.xywhn.height()
+        val heightRatio = bboxXywhn.height()
 
         return ZoomData(
             limitingPoints=limitingPoints,
@@ -111,6 +116,9 @@ class AutoZoom {
         val currentZoomData = getZoomData(obj)
         if (refZoomData == null || currentZoomData == null) return 1f
 
+        var bboxXywhn = obj.bbox.xywhn
+        if (obj.bbox.xywhnCorrected != null) bboxXywhn = obj.bbox.xywhnCorrected!!
+
         // TODO переделать бы
         // Предполагаем, что голова всегда есть в кадре и ноги не задирают!!! Человек просто вертикально стоит
         if (currentZoomData!!.limitingPoints.second!!.index < refZoomData!!.limitingPoints.second!!.index) {
@@ -125,7 +133,7 @@ class AutoZoom {
             }
         } else {
             val bodyHeight = currentZoomData.limitingPoints.second!!.value!!.second -
-                    obj.bbox.xywhn.top + refZoomData!!.addBottomRatio * obj.bbox.xywhn.height()
+                    bboxXywhn.top + refZoomData!!.addBottomRatio * bboxXywhn.height()
 
             // Log.d("AutoZoom", "refHeightRatio: ${refZoomData!!.heightRatio}, bodyHeight: $bodyHeight")
 

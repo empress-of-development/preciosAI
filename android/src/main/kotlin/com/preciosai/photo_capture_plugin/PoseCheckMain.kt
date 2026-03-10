@@ -40,7 +40,7 @@ class PoseComparator(
     init {
         if (mode == "COCO") {
             minKeypoints = 17
-            fallbackAnchors = listOf(Pair(11, 12), Pair(5, 6), Pair(3, 4), Pair(1, 2))
+            fallbackAnchors = listOf(Pair(3, 4), Pair(1, 2), Pair(5, 6), Pair(11, 12))
             complexLimbs = mapOf(
                 "right_hand" to Triple(5, 7, 9), "left_hand" to Triple(6, 8, 10),
                 "right_leg" to Triple(11, 13, 15), "left_leg" to Triple(12, 14, 16)
@@ -51,7 +51,7 @@ class PoseComparator(
             )
         } else {
             minKeypoints = 33
-            fallbackAnchors = listOf(Pair(23, 24), Pair(11, 12), Pair(7, 8), Pair(2, 5))
+            fallbackAnchors = listOf(Pair(7, 8), Pair(2, 5), Pair(11, 12), Pair(23, 24))
             complexLimbs = mapOf(
                 "right_hand" to Triple(11, 13, 15), "left_hand" to Triple(12, 14, 16),
                 "right_leg" to Triple(23, 25, 27), "left_leg" to Triple(24, 26, 28)
@@ -75,6 +75,7 @@ class PoseComparator(
     ): PoseComparisonResult {
 
         val kpRef = poseRef.keypoints
+        if (poseRef.keypoints.xynCorrected != null) kpRef.xyn = poseRef.keypoints.xynCorrected!!
         val kpUsr = poseUsr.keypoints
 
         if (kpRef.xy.size < minKeypoints || kpUsr.xy.size < minKeypoints) {
@@ -245,10 +246,12 @@ class PoseComparator(
 
         val activeScores = finalDetails.values.filterNotNull()
         val finalOverallScore = if (activeScores.isNotEmpty()) {
-            val averageScore = activeScores.average().toFloat()
-            val minScore = activeScores.minOrNull() ?: 0f
-            val penaltyWeight = 0.35f
-            (averageScore * (1f - penaltyWeight)) + (minScore * penaltyWeight)
+            if (finalDetails["location"] != null && finalDetails["location"]!! > 0.7) {
+                val averageScore = activeScores.average().toFloat()
+                val minScore = activeScores.minOrNull() ?: 0f
+                val penaltyWeight = 0.35f
+                (averageScore * (1f - penaltyWeight)) + (minScore * penaltyWeight)
+            } else 0f
         } else {
             0f
         }
@@ -472,15 +475,19 @@ fun cosineSimilarity(
         allScores.add(score)
     }
 
-    val overallScore = if (allScores.isNotEmpty()) {
-        val averageScore = allScores.average().toFloat()
-        val minScore = allScores.minOrNull() ?: 0f
+    var overallScore = if (allScores.isNotEmpty()) {
+        if (details["location"] != null && details["location"]!! > 0.7) {
+            val averageScore = allScores.average().toFloat()
+            val minScore = allScores.minOrNull() ?: 0f
 
-        val penaltyWeight = 0.35f
-        (averageScore * (1f - penaltyWeight)) + (minScore * penaltyWeight)
+            val penaltyWeight = 0.35f
+            (averageScore * (1f - penaltyWeight)) + (minScore * penaltyWeight)
+        } else 0f
     } else {
         0f
     }
+
+
 
     Log.d("PoseCheckMain", "details: $details")
     return PoseComparisonResult(overallScore, details)

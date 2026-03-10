@@ -22,6 +22,7 @@ import androidx.camera.extensions.ExtensionMode
 import androidx.camera.extensions.ExtensionsManager
 import androidx.camera.core.resolutionselector.ResolutionSelector
 import androidx.camera.core.resolutionselector.ResolutionStrategy
+import androidx.camera.core.resolutionselector.AspectRatioStrategy
 
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -56,6 +57,8 @@ import org.opencv.core.Size
 import androidx.camera.camera2.interop.Camera2CameraInfo
 import android.hardware.camera2.CaptureRequest
 import android.hardware.camera2.CameraCharacteristics
+import android.view.OrientationEventListener
+import android.graphics.RectF
 
 
 // TODO костыль!
@@ -138,7 +141,7 @@ class CameraView @JvmOverloads constructor(
     private val modelType: String = MODEL_TYPE
     private val mainScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
-    private val autoZoom = AutoZoom()
+    public val autoZoom = AutoZoom()
     public var refDetectionResult: InstanceObj? = null
     private val iouThreshold = 0.5
     private val comparePoseUseSmoothing = true
@@ -216,6 +219,8 @@ class CameraView @JvmOverloads constructor(
     private var resultImageShoot = ResultImageShoot()
 
     val methodChannelAdd = MethodChannel(messenger, "photo_capture_channel_add")
+    private var orientationEventListener: OrientationEventListener? = null
+    private var rotationUpdated = false
 
     init {
         removeAllViews()
@@ -372,24 +377,41 @@ class CameraView @JvmOverloads constructor(
                     .isStabilizationSupported
             Log.d(TAG, "isPreviewStabilizationSupported $isPreviewStabilizationSupported")
 
+            val resolutionSelector = ResolutionSelector.Builder()
+                .setAspectRatioStrategy(AspectRatioStrategy.RATIO_4_3_FALLBACK_AUTO_STRATEGY)
+                .setResolutionStrategy(
+                    ResolutionStrategy(
+                        android.util.Size(480, 640),
+                        ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER
+                    )
+                )
+                .build()
+
             previewInit = try {
                 Preview.Builder()
-                    .setPreviewStabilizationEnabled(true)
+                    //.setPreviewStabilizationEnabled(true)
+                    .setResolutionSelector(resolutionSelector)
                     .build()
+                    .also {
+                        it.setSurfaceProvider(previewView.surfaceProvider)
+                    }
             } catch (e: Exception) {
                 Log.d(TAG, "isPreviewStabilizationSupported false!!!")
 
                 Preview.Builder()
                     .setTargetAspectRatio(AspectRatio.RATIO_4_3)
                     .build()
+                    .also {
+                        it.setSurfaceProvider(previewView.surfaceProvider)
+                    }
             }
             previewInit?.setSurfaceProvider(previewView.surfaceProvider)
 
             // ---------- ImageAnalysis ----------
             imageAnalysisInit = ImageAnalysis.Builder()
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                //.setTargetAspectRatio(AspectRatio.RATIO_4_3)
-                .setTargetResolution(android.util.Size(480, 640))
+                //.setTargetResolution(android.util.Size(480, 640))
+                .setResolutionSelector(resolutionSelector)
                 .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
                 .build()
 
@@ -399,6 +421,7 @@ class CameraView @JvmOverloads constructor(
                 imageProxy.close()
             }
 
+            setupOrientationListener(context, previewInit, imageAnalysisInit!!)
             // ---------- ImageCapture ----------
             imageCaptureInit = ImageCapture.Builder()
                 .setTargetAspectRatio(AspectRatio.RATIO_4_3)
@@ -501,10 +524,10 @@ class CameraView @JvmOverloads constructor(
 
         preview.setSurfaceProvider(previewView.surfaceProvider)
         camera!!.cameraControl.setZoomRatio(zoomState.currentZoomRatio)
-        delay(300)
+        delay(200)
 
-        camera!!.cameraControl.setExposureCompensationIndex(0)
-        delay(1000)
+        //camera!!.cameraControl.setExposureCompensationIndex(0)
+        //delay(1000)
 
         // ждем пока PreviewView реально не начнёт показывать видеопоток с камеры
         suspendUntilPreviewStreaming()
@@ -698,6 +721,112 @@ class CameraView @JvmOverloads constructor(
         }
     }
 
+    private fun setupOrientationListener(context: Context, preview: Preview, imageAnalysis: ImageAnalysis) {
+        orientationEventListener = object : OrientationEventListener(context) {
+            override fun onOrientationChanged(orientation: Int) {
+                if (orientation == ORIENTATION_UNKNOWN) return
+
+                val rotation = when (orientation) {
+                    in 45..134 -> Surface.ROTATION_270 // Reverse Landscape
+                    in 135..224 -> Surface.ROTATION_180 // Reverse Portrait
+                    in 225..314 -> Surface.ROTATION_90  // Landscape
+                    else -> Surface.ROTATION_0          // Portrait
+                }
+
+                rotationUpdated = true
+
+                // Обновляем целевую ротацию для UseCases
+                preview.targetRotation = rotation
+                imageAnalysis.targetRotation = rotation
+            }
+        }
+        orientationEventListener?.enable()
+    }
+
+    private fun getCorrectedResolution(proxyWidth: Int, proxyHeight: Int, rotationDegrees: Int) {
+
+        if (refDetectionResult != null) {
+
+            var offsetLeft: Float = 0f
+            var offsetTop: Float = 0f
+            var ratio = proxyWidth.toFloat() / proxyHeight.toFloat()
+            if (rotationDegrees == 90) {
+                // Вертикальный кадр
+                ratio = proxyHeight.toFloat() / proxyWidth.toFloat()
+            }
+
+            val refRatio =
+                refDetectionResult!!.imageShape.width / refDetectionResult!!.imageShape.height
+
+            if (ratio > refRatio) {
+                // добавляем место по бокам
+                offsetLeft = (refDetectionResult!!.imageShape.height * (ratio - refRatio) / 2).toFloat()
+                if (offsetLeft != refDetectionResult!!.offsetLeft) {
+                    for ((idx, refPred) in refDetectionResult!!.objects.withIndex()) {
+
+                        refDetectionResult!!.imageShapeCorrected = Size(
+                            refDetectionResult!!.imageShape.height * ratio,
+                            refDetectionResult!!.imageShape.height
+                        )
+                        refDetectionResult!!.objects[idx].bbox.xywhnCorrected = RectF(
+                            (refDetectionResult!!.objects[idx].bbox.xywh.left + offsetLeft) / refDetectionResult!!.imageShapeCorrected!!.width.toFloat(),
+                            refDetectionResult!!.objects[idx].bbox.xywhn.top,
+                            (refDetectionResult!!.objects[idx].bbox.xywh.right + offsetLeft) / refDetectionResult!!.imageShapeCorrected!!.width.toFloat(),
+                            refDetectionResult!!.objects[idx].bbox.xywhn.bottom,
+                        )
+
+                        val xynCorrected = mutableListOf<Pair<Float, Float>>()
+                        for ((idx, point) in refDetectionResult!!.objects[idx].keypoints.xy.withIndex()) {
+                            xynCorrected.add(
+                                Pair(
+                                    ((point.first + offsetLeft) / refDetectionResult!!.imageShapeCorrected!!.width).toFloat(),
+                                    ((point.second + offsetTop) / refDetectionResult!!.imageShapeCorrected!!.height).toFloat()
+                                )
+                            )
+                        }
+                        refDetectionResult!!.objects[idx].keypoints.xynCorrected = xynCorrected
+                    }
+                    refDetectionResult!!.offsetLeft = offsetLeft
+                    refDetectionResult!!.offsetTop = 0f
+                }
+            } else {
+                // добавляем место сверху
+                offsetTop = (refDetectionResult!!.imageShape.width.toFloat() * (refRatio - ratio)).toFloat()
+                if (offsetTop != refDetectionResult!!.offsetTop) {
+                    for ((idx, refPred) in refDetectionResult!!.objects.withIndex()) {
+
+                        refDetectionResult!!.imageShapeCorrected = Size(
+                            refDetectionResult!!.imageShape.width,
+                            refDetectionResult!!.imageShape.width / ratio
+                        )
+                        refDetectionResult!!.objects[idx].bbox.xywhnCorrected = RectF(
+                            refDetectionResult!!.objects[idx].bbox.xywhn.left,
+                            (refDetectionResult!!.objects[idx].bbox.xywh.top + offsetTop) / refDetectionResult!!.imageShapeCorrected!!.height.toFloat(),
+                            refDetectionResult!!.objects[idx].bbox.xywhn.right,
+                            (refDetectionResult!!.objects[idx].bbox.xywh.bottom + offsetTop) / refDetectionResult!!.imageShapeCorrected!!.height.toFloat(),
+                        )
+
+                        val xynCorrected = mutableListOf<Pair<Float, Float>>()
+                        for ((idx, point) in refDetectionResult!!.objects[idx].keypoints.xy.withIndex()) {
+                            xynCorrected.add(
+                                Pair(
+                                    ((point.first + offsetLeft) / refDetectionResult!!.imageShapeCorrected!!.width).toFloat(),
+                                    ((point.second + offsetTop) / refDetectionResult!!.imageShapeCorrected!!.height).toFloat()
+                                )
+                            )
+                        }
+                        refDetectionResult!!.objects[idx].keypoints.xynCorrected = xynCorrected
+
+                    }
+                    refDetectionResult!!.offsetTop = offsetTop
+                    refDetectionResult!!.offsetLeft = 0f
+                }
+            }
+            Log.d(TAG, "Corrected resolution: offsetTop ${refDetectionResult!!.offsetTop}, offsetLeft ${refDetectionResult!!.offsetLeft}")
+        }
+    }
+
+
     private fun onFrame(imageProxy: ImageProxy) {
          if (captureRequested) {
             val state = OverlayState(
@@ -750,14 +879,17 @@ class CameraView @JvmOverloads constructor(
                 // TODO проверить!!!
                 // For camera feed, we typically rotate the bitmap
                 // In landscape mode, we don't rotate, so width/height should match actual bitmap dimensions
+                val rotateForCamera = if (imageProxy.imageInfo.rotationDegrees != 0) true else false
                 var tInit = System.nanoTime()
+
+                getCorrectedResolution(imageProxy.width, imageProxy.height, imageProxy.imageInfo.rotationDegrees)
                 val result = if (isLandscape) {
-                    p.predict(reusableBitmap!!, imageProxy.width, imageProxy.height, rotateForCamera = true, isLandscape = isLandscape)
+                    p.predict(reusableBitmap!!, imageProxy.width, imageProxy.height, rotateForCamera = rotateForCamera, isLandscape = isLandscape, rotationDegrees = imageProxy.imageInfo.rotationDegrees)
                 } else {
-                    // In portrait mode, keep the original behavior (h, w)
-                    p.predict(reusableBitmap!!, imageProxy.height, imageProxy.width, rotateForCamera = true, isLandscape = isLandscape)
+                    // Portrait mode
+                    p.predict(reusableBitmap!!, imageProxy.height, imageProxy.width, rotateForCamera = rotateForCamera, isLandscape = isLandscape, rotationDegrees = imageProxy.imageInfo.rotationDegrees)
                 }
-                Log.d(TAG, "Prediction time ${(System.nanoTime() - tInit) / 1_000_000.0}")
+                // Log.d(TAG, "Prediction time ${(System.nanoTime() - tInit) / 1_000_000.0}")
 
                 if (result.objects.isEmpty() || refDetectionResult!!.objects.isEmpty()) {
                     val state = OverlayState(
@@ -780,7 +912,8 @@ class CameraView @JvmOverloads constructor(
                 val currentPredictionObj = result.objects[0]
                 var poseComparisonDetails: Map<String, Float?>? = if (poseComparator.previousResult != null) poseComparator.previousResult!!.details else null
 
-                if (autoZoom.refZoomData == null) {
+                Log.d(TAG, "rotationUpdated $rotationUpdated")
+                if (autoZoom.refZoomData == null || rotationUpdated) {
                     // по референсному кадру расчитываем параметры для автозума только один раз
                     // TODO берется первый объект
                     autoZoom.getRefZoomData(refPredictionObj)
@@ -838,7 +971,11 @@ class CameraView @JvmOverloads constructor(
                     }
 
                     if (autoZoom.stage == "location") {
-                        var resIou = iou(refPredictionObj.bbox.xywhn, currentPredictionObj.bbox.xywhn)
+                        var resIou = iou(
+                            if (refPredictionObj.bbox.xywhnCorrected == null)
+                                refPredictionObj.bbox.xywhn else refPredictionObj.bbox.xywhnCorrected!!,
+                            currentPredictionObj.bbox.xywhn
+                        )
                         // Log.d(TAG, "autoZoom.stage, ${autoZoom.stage}, autoZoom.locationDurationCount, ${autoZoom.zoomDurationCount}")
                         if (resIou > iouThreshold) {
                             autoZoom.locationDurationCount++
@@ -851,10 +988,17 @@ class CameraView @JvmOverloads constructor(
 
                     if (autoZoom.stage == "kps_comparison") {
                         if (pulseRectAnimation.state.visible) pulseRectAnimation.setAnimationVisible(false)
-                        var resIou = iou(refPredictionObj.bbox.xywhn, currentPredictionObj.bbox.xywhn)
+                        var resIou = iou(
+                            if (refPredictionObj.bbox.xywhnCorrected == null)
+                                refPredictionObj.bbox.xywhn else refPredictionObj.bbox.xywhnCorrected!!,
+                            currentPredictionObj.bbox.xywhn)
+
+                        Log.d(TAG, "resIou, ${resIou}")
 
                         if (resIou < iouThreshold) {
                             autoZoom.kpsComparisonDurationCount = 0
+                            if (!pulseRectAnimation.state.visible) pulseRectAnimation.setAnimationVisible(true)
+
                         } else {
                             var compareRes: Float?
                             if (comparePoseUseSmoothing) {

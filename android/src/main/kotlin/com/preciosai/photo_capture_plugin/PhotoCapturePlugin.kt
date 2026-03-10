@@ -85,6 +85,16 @@ class PhotoCapturePlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCal
         onAttachedToActivity(binding)
     }
 
+    fun saveBitmapToFile(context: Context, bitmap: Bitmap, fileName: String): File {
+        val file = File(context.getExternalFilesDir(null), "$fileName.png")
+        FileOutputStream(file).use { out ->
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+            out.flush()
+        }
+
+        return file
+    }
+
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         when (call.method) {
             "ref_frame_predict" -> {
@@ -123,6 +133,18 @@ class PhotoCapturePlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCal
                                     rotateForCamera = false,
                                     isLandscape = false
                                 )
+                            if (platformView.cameraViewInstance.refDetectionResult!!.objects.size == 0) {
+                                // TODO сделать сообщение, что модель не распознается на картинке и нужно взять другую
+                                saveBitmapToFile(applicationContext, bitmap, "ref_frame_predict_${System.currentTimeMillis()}")
+                                platformView.cameraViewInstance.refDetectionResult =
+                                    predictorInstance.predict(
+                                        bitmap,
+                                        w,
+                                        h,
+                                        rotateForCamera = false,
+                                        isLandscape = false
+                                    )
+                            }
                             Log.d(
                                 TAG,
                                 "ref_frame_predict result ${platformView.cameraViewInstance.refDetectionResult}"
@@ -185,6 +207,18 @@ class PhotoCapturePlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCal
                         "Error sending visualization mode: ${e.message}",
                         null
                     )
+                }
+            }
+
+            "switchCamera" -> {
+                Log.d(TAG, "switchCamera start!")
+
+                val platformView = platformViewFactory.activeViews.values.first()
+                if (platformView != null) {
+                    platformView.cameraViewInstance.switchCamera()
+                    if (platformView.cameraViewInstance.refDetectionResult != null)
+                        platformView.cameraViewInstance.autoZoom.getRefZoomData(platformView.cameraViewInstance.refDetectionResult!!.objects[0])
+                    result.success(null)
                 }
             }
 

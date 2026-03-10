@@ -15,7 +15,12 @@ data class InstanceObj(
     val imageShape: Size,
     val objects: List<PredictionObj> = emptyList(),
     val speed: Double,
-    val fps: Double? = null
+    val fps: Double? = null,
+
+    var offsetLeft: Float = 0f,
+    var offsetTop: Float = 0f,
+    @Serializable(with = OpenCvSizeSerializer::class)
+    var imageShapeCorrected: Size? = null
 )
 
 @Serializable
@@ -34,7 +39,9 @@ data class BBox(
     @Serializable(with = RectFAsArraySerializer::class)
     val xywh: RectF,
     @Serializable(with = RectFAsArraySerializer::class)
-    val xywhn: RectF
+    val xywhn: RectF,
+    @Serializable(with = RectFAsArraySerializer::class)
+    var xywhnCorrected: RectF? = null
 )
 
 @Serializable
@@ -44,7 +51,9 @@ data class Keypoints(
     @Serializable(with = FloatPairListSerializer::class)
     var xy: List<Pair<Float, Float>>,
     val zn: List<Float>? = null,
-    var scores: List<Float>
+    var scores: List<Float>,
+
+    var xynCorrected: List<Pair<Float, Float>>? = null
 )
 
 
