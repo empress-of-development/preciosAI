@@ -15,7 +15,8 @@ data class OverlayState(
     val captureRequested: Boolean,
     val arrowAnimationOffset: Float,
     val poseComparisonDetails: Map<String, Float?>? = null,
-    val visualizationMode: String = "skeleton+capsules"
+    val visualizationMode: String = "skeleton+capsules",
+    val isPortrait: Boolean = false
 )
 
 data class PoseTopology(
@@ -309,11 +310,6 @@ class OverlayRenderer @JvmOverloads constructor(private val poseMode: String) {
                         var px = leftBorder + pxCam * scale + dx
                         var py = topBorder + pyCam * scale + dy
 
-                        // For front camera pose, apply horizontal flip
-                        if (state.isFrontCamera) {
-                            px = frameWidth - px
-                        }
-
                         if (state.visualizationMode in listOf("skeleton", "skeleton+capsules")) {
                             canvas.drawCircle(px, py, 8f, jointPaint)
                         }
@@ -341,38 +337,34 @@ class OverlayRenderer @JvmOverloads constructor(private val poseMode: String) {
 
                 if (
                     idx != resList.size - 1 &&
-                    state.visualizationMode in listOf("capsules", "skeleton+capsules")
+                    state.visualizationMode in listOf("capsules", "skeleton+capsules") &&
+                    state.poseComparisonDetails != null
                 ) {
                     capsulePoseRenderer.drawPose(canvas, points, state.poseComparisonDetails)
                 }
             }
         }
 
-        for (person in state.result.objects) {
-            // BBox
-            var left = leftBorder + person.bbox.xywh.left * scale + dx
-            var top = topBorder + person.bbox.xywh.top * scale + dy
-            var right = leftBorder + person.bbox.xywh.right * scale + dx
-            var bottom = topBorder + person.bbox.xywh.bottom * scale + dy
+        if (!state.isPortrait) {
+            for (person in state.result.objects) {
+                // BBox
+                var left = leftBorder + person.bbox.xywh.left * scale + dx
+                var top = topBorder + person.bbox.xywh.top * scale + dy
+                var right = leftBorder + person.bbox.xywh.right * scale + dx
+                var bottom = topBorder + person.bbox.xywh.bottom * scale + dy
 
-            // Flip horizontally for front camera
-            if (state.isFrontCamera) {
-                val flippedLeft = frameWidth - right
-                val flippedRight = frameWidth - left
-                left = flippedLeft
-                right = flippedRight
+                paint.color = Color.argb(200, 63, 54, 145)
+                paint.style = Paint.Style.STROKE
+                paint.strokeWidth = 10f
+                paint.pathEffect = DashPathEffect(floatArrayOf(30f, 30f), 0f)
+                canvas.drawRoundRect(
+                    left, top, right, bottom,
+                    BOX_CORNER_RADIUS, BOX_CORNER_RADIUS,
+                    paint
+                )
             }
-
-            paint.color = Color.argb(200, 63, 54, 145)
-            paint.style = Paint.Style.STROKE
-            paint.strokeWidth = 10f
-            paint.pathEffect = DashPathEffect(floatArrayOf(30f, 30f), 0f)
-            canvas.drawRoundRect(
-                left, top, right, bottom,
-                BOX_CORNER_RADIUS, BOX_CORNER_RADIUS,
-                paint
-            )
         }
+
         if (state.showBackArrow) {
             drawVerticalBackArrow(canvas, state.arrowAnimationOffset, width, height)
         }

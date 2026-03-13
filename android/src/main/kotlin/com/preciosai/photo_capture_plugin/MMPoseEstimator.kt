@@ -186,7 +186,7 @@ class MMPoseEstimator(
         // mmposeModule.close()
     }
 
-    override fun predict(bitmap: Bitmap, origWidth: Int, origHeight: Int, rotateForCamera: Boolean, isLandscape: Boolean, rotationDegrees: Int): InstanceObj {
+    override fun predict(bitmap: Bitmap, origWidth: Int, origHeight: Int, rotateForCamera: Boolean, isLandscape: Boolean, isFrontCamera: Boolean, rotationDegrees: Int): InstanceObj {
         t0 = System.nanoTime()
 
         val overallStartTime = System.nanoTime()

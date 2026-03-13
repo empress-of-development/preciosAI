@@ -43,7 +43,8 @@ class CapsulePoseRenderer @JvmOverloads constructor(private val poseMode: String
                 Bone(12, 14, "left_hand"), Bone(14, 16, "left_hand"),
                 Bone(11, 13, "right_hand"), Bone(13, 15, "right_hand"),
                 Bone(24, 26, "left_leg"), Bone(26, 28, "left_leg"),
-                Bone(23, 25, "right_leg"), Bone(25, 27, "right_leg")
+                Bone(23, 25, "right_leg"), Bone(25, 27, "right_leg"),
+                Bone(12, 11, "shoulders")
             )
         )
     }
@@ -115,26 +116,24 @@ class CapsulePoseRenderer @JvmOverloads constructor(private val poseMode: String
     fun drawPose(
         canvas: Canvas,
         keypoints: Array<PointF?>,
-        details: Map<String, Float?>?
+        details: Map<String, Float?>
     ) {
         if (keypoints.size < 17) return
 
         for (bone in limbs) {
             val p1 = keypoints[bone.start]
             val p2 = keypoints[bone.end]
+            val score = details[bone.partKey]
 
-            if (p1 != null && p2 != null) {
-                var color = Color.parseColor("#00E5FF")
-                if (details != null) {
-                    val score = details[bone.partKey] ?: 0f
-                    color = getColorForScore(score)
-                }
+            if (p1 != null && p2 != null && score != null) {
+                // var color = Color.parseColor("#00E5FF")
+                // color = getColorForScore(score)
 
                 drawCapsule(
                     canvas = canvas,
                     p1 = p1,
                     p2 = p2,
-                    color = color,
+                    color = getColorForScore(score),
                     capsuleThickness = 50f,
                     gap = 10f
                 )
@@ -166,12 +165,10 @@ class CapsulePoseRenderer @JvmOverloads constructor(private val poseMode: String
 
             // Для торса берем среднее значение между плечами и тазом
             var torsoColor = Color.parseColor("#00E5FF")
-            if (details != null) {
-                val shouldersScore = details["shoulders"] ?: 0f
-                val pelvisScore = details["pelvis"] ?: 0f
-                val torsoScore = (shouldersScore + pelvisScore) / 2f
-                torsoColor = getColorForScore(torsoScore)
-            }
+            val shouldersScore = details["shoulders"] ?: 0f
+            val pelvisScore = details["pelvis"] ?: 0f
+            val torsoScore = (shouldersScore + pelvisScore) / 2f
+            torsoColor = getColorForScore(torsoScore)
 
             // Рисуем позвоночник
             drawCapsule(

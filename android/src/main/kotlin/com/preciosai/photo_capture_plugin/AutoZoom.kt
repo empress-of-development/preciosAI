@@ -9,12 +9,13 @@ data class ZoomData(
     // сверху и снизу накидываем пространство как на реф кадре пропорционально отрезку между точками.
     val addBottomRatio: Float,
     val heightRatio: Float,
+    val points: List<Pair<Float, Float>?>,
 )
 
 
 class AutoZoom {
     private val modelType = if (MODEL_TYPE == "MediaPipeEstimator") "MediaPipe" else "COCO"
-    private val confidenceThreshold = 0.2f
+    private val confidenceThreshold = 0.3f
     private val meanZoomLength = 3
 
     public var stage = "zoom" // location, kps_comparison
@@ -32,6 +33,8 @@ class AutoZoom {
     public var refZoomData: ZoomData? = null
 
     public var zoomLevelList = mutableListOf<Float?>()
+
+    public var isPortrait: Boolean = false
 
     private fun avg(obj: PredictionObj, kpsIdxs: List<Int>): Pair<Float, Float>? {
         // TODO Сделать несколько объектов!
@@ -74,6 +77,7 @@ class AutoZoom {
                 avg(obj, listOf(8, 7)), //ears
                 //if (obj.keypoints.scores[0] > 0.45) res.keypoints.xyn[0] else null, //nose
                 avg(obj, listOf(0)), //nose
+                avg(obj, listOf(9, 10)), //mouth
                 avg(obj, listOf(12, 11)), //shoulders
                 avg(obj, listOf(24, 23)), //pelvis
                 //avg(obj, listOf(13, 14)), //knees
@@ -82,42 +86,44 @@ class AutoZoom {
         }
     }
 
-    private fun getZoomData(obj: PredictionObj?): ZoomData? {
+    private fun getZoomData(obj: PredictionObj?, isReference: Boolean = false): ZoomData? {
         if (obj == null || obj.keypoints == null) return null
         var bboxXywhn = obj.bbox.xywhn
         if (obj.bbox.xywhnCorrected != null) bboxXywhn = obj.bbox.xywhnCorrected!!
 
-        var filtered = getBodyPoints(obj).withIndex().filter { it.value != null }
+        val points = getBodyPoints(obj)
+        val filtered = points.withIndex().filter { it.value != null }
         if (filtered.size < 2) return null
         val limitingPoints = filtered.minByOrNull { it.value!!.second } to filtered.maxByOrNull { it.value!!.second }
 
         // bodyHeight - высота тела от высшей точки бокса до нижней из ключевых точек
         val bodyHeight = limitingPoints.second!!.value!!.second - bboxXywhn.top // limitingPoints.first!!.value!!.second - надо бы глаза тоже править
         // addBottomRatio - нижняя часть между боксом и нижней ключевой точкой
-        val addBottomRatio = 1 - bodyHeight / bboxXywhn.height()
+        val bboxHeight = if (limitingPoints.second!!.index < 5) 1 - bboxXywhn.top else bboxXywhn.height()
+        var addBottomRatio = 1 - bodyHeight / bboxHeight
 
-        val heightRatio = bboxXywhn.height()
+        if (isReference && limitingPoints.second!!.index < 5) {
+            isPortrait = true
+        }
 
         return ZoomData(
-            limitingPoints=limitingPoints,
-            addBottomRatio=addBottomRatio,
-            heightRatio=heightRatio,
+            limitingPoints = limitingPoints,
+            addBottomRatio = addBottomRatio,
+            heightRatio = bboxXywhn.height(),
+            points = points,
         )
     }
 
     public fun getRefZoomData(refObj: PredictionObj?) {
         // Получаем необходимые пропорции человека по референсному кадру
-        refZoomData = getZoomData(refObj)
+        refZoomData = getZoomData(refObj, isReference = true)
     }
 
-    public fun getZoomLevel(obj: PredictionObj, currentZoomLevel: Float = 1f): Float? {
+    public fun getZoomLevel(obj: PredictionObj): Float? {
         // Получаем уровень зума по текущему кадру с камеры
 
         val currentZoomData = getZoomData(obj)
         if (refZoomData == null || currentZoomData == null) return 1f
-
-        var bboxXywhn = obj.bbox.xywhn
-        if (obj.bbox.xywhnCorrected != null) bboxXywhn = obj.bbox.xywhnCorrected!!
 
         // TODO переделать бы
         // Предполагаем, что голова всегда есть в кадре и ноги не задирают!!! Человек просто вертикально стоит
@@ -132,10 +138,23 @@ class AutoZoom {
                 return 1f
             }
         } else {
-            val bodyHeight = currentZoomData.limitingPoints.second!!.value!!.second -
-                    bboxXywhn.top + refZoomData!!.addBottomRatio * bboxXywhn.height()
+            var bodyHeight: Float = 0f
+            val bboxHeight = if (currentZoomData!!.limitingPoints.second!!.index < 5)
+                1 - currentZoomData!!.limitingPoints.first!!.value!!.second else obj.bbox.xywhn.height()
 
-            // Log.d("AutoZoom", "refHeightRatio: ${refZoomData!!.heightRatio}, bodyHeight: $bodyHeight")
+            if (currentZoomData!!.limitingPoints.second!!.index == refZoomData!!.limitingPoints.second!!.index) {
+                bodyHeight = currentZoomData!!.limitingPoints.second!!.value!!.second -
+                        obj.bbox.xywhn.top + refZoomData!!.addBottomRatio * bboxHeight
+            } else {
+                // то есть в кадре видно больше точек, чем на референсе
+                val p = refZoomData!!.limitingPoints.second!!
+                if (currentZoomData!!.points[p.index] != null) {
+                    bodyHeight = currentZoomData!!.points[p.index]!!.second -
+                            obj.bbox.xywhn.top + refZoomData!!.addBottomRatio * bboxHeight
+                }
+            }
+
+            if (bodyHeight == 0f) return 1f
 
             if (!zoomLevelList.isEmpty() && zoomLevelList.last() == null) zoomLevelList.clear()
 

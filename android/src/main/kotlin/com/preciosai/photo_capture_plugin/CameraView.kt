@@ -291,6 +291,19 @@ class CameraView @JvmOverloads constructor(
         }
     }
 
+    fun setPreviewZoomLevel(zoomLevel: Float) {
+        camera?.let { cam: Camera ->
+            val clampedZoomRatio = zoomLevel.coerceIn(zoomState.minZoomRatio, zoomState.maxZoomRatio)
+
+            previewView.scaleX = clampedZoomRatio
+            previewView.scaleY = clampedZoomRatio
+
+            zoomState.currentZoomRatio = clampedZoomRatio
+
+            onZoomChanged?.invoke(zoomState.currentZoomRatio)
+        }
+    }
+
     fun setModel(callback: ((Boolean) -> Unit)? = null) {
         Log.d(TAG, "setModel start")
 
@@ -389,21 +402,15 @@ class CameraView @JvmOverloads constructor(
 
             previewInit = try {
                 Preview.Builder()
-                    //.setPreviewStabilizationEnabled(true)
+                    .setPreviewStabilizationEnabled(true)
                     .setResolutionSelector(resolutionSelector)
                     .build()
-                    .also {
-                        it.setSurfaceProvider(previewView.surfaceProvider)
-                    }
             } catch (e: Exception) {
                 Log.d(TAG, "isPreviewStabilizationSupported false!!!")
 
                 Preview.Builder()
                     .setTargetAspectRatio(AspectRatio.RATIO_4_3)
                     .build()
-                    .also {
-                        it.setSurfaceProvider(previewView.surfaceProvider)
-                    }
             }
             previewInit?.setSurfaceProvider(previewView.surfaceProvider)
 
@@ -518,13 +525,13 @@ class CameraView @JvmOverloads constructor(
             lifecycleOwner!!,
             selector,
             preview,
-            imageAnalysisForResult,
+            //imageAnalysisForResult,
             imageCaptureForResult
         )
 
         preview.setSurfaceProvider(previewView.surfaceProvider)
         camera!!.cameraControl.setZoomRatio(zoomState.currentZoomRatio)
-        delay(200)
+        delay(350)
 
         //camera!!.cameraControl.setExposureCompensationIndex(0)
         //delay(1000)
@@ -639,6 +646,10 @@ class CameraView @JvmOverloads constructor(
                             val mat = CameraViewUtils.imageProxyToRotatedMat(image)
                             image.close()
 
+                            if (predictor!!.isFrontCamera) {
+                                Core.flip(mat, mat, 1)
+                            }
+
                             // TODO update image postprocessing
                             // val beigeMat = resultImageShoot.stylizeBeigeLook(mat)
                             val jpegBytes = CameraViewUtils.matToJpegBytes(mat)
@@ -750,7 +761,7 @@ class CameraView @JvmOverloads constructor(
             var offsetLeft: Float = 0f
             var offsetTop: Float = 0f
             var ratio = proxyWidth.toFloat() / proxyHeight.toFloat()
-            if (rotationDegrees == 90) {
+            if (rotationDegrees == 90 || rotationDegrees == 270) {
                 // Вертикальный кадр
                 ratio = proxyHeight.toFloat() / proxyWidth.toFloat()
             }
@@ -884,10 +895,10 @@ class CameraView @JvmOverloads constructor(
 
                 getCorrectedResolution(imageProxy.width, imageProxy.height, imageProxy.imageInfo.rotationDegrees)
                 val result = if (isLandscape) {
-                    p.predict(reusableBitmap!!, imageProxy.width, imageProxy.height, rotateForCamera = rotateForCamera, isLandscape = isLandscape, rotationDegrees = imageProxy.imageInfo.rotationDegrees)
+                    p.predict(reusableBitmap!!, imageProxy.width, imageProxy.height, rotateForCamera, isLandscape, isFrontCamera, imageProxy.imageInfo.rotationDegrees)
                 } else {
                     // Portrait mode
-                    p.predict(reusableBitmap!!, imageProxy.height, imageProxy.width, rotateForCamera = rotateForCamera, isLandscape = isLandscape, rotationDegrees = imageProxy.imageInfo.rotationDegrees)
+                    p.predict(reusableBitmap!!, imageProxy.height, imageProxy.width, rotateForCamera, isLandscape, isFrontCamera, imageProxy.imageInfo.rotationDegrees)
                 }
                 // Log.d(TAG, "Prediction time ${(System.nanoTime() - tInit) / 1_000_000.0}")
 
@@ -895,7 +906,7 @@ class CameraView @JvmOverloads constructor(
                     val state = OverlayState(
                         result = result,
                         refDetectionResult = refDetectionResult,
-                        isFrontCamera = lensFacing == CameraSelector.LENS_FACING_FRONT,
+                        isFrontCamera = isFrontCamera,
                         captureRequested = captureRequested,
                         showPulseRect = pulseRectAnimation.state.visible,
                         rectAlpha = pulseRectAnimation.state.animationOffset.toInt(),
@@ -917,7 +928,6 @@ class CameraView @JvmOverloads constructor(
                     // по референсному кадру расчитываем параметры для автозума только один раз
                     // TODO берется первый объект
                     autoZoom.getRefZoomData(refPredictionObj)
-                    Log.d(TAG, "autoZoom.refZoomData: ${autoZoom.refZoomData}")
                 }
 
                 if (refDetectionResult != null && autoZoom.refZoomData != null && currentPredictionObj.keypoints != null) {
@@ -936,6 +946,7 @@ class CameraView @JvmOverloads constructor(
                         } else {
                             if (abs(zoomLevel - 1f) > 0.1) {
                                 setZoomLevel(zoomState.currentZoomRatio + zoomLevel - 1f)
+                                //setPreviewZoomLevel(zoomState.currentZoomRatio + zoomLevel - 1f)
                                 Thread.sleep(250)
                             } else {
                                 autoZoom.zoomDurationCount++
@@ -970,7 +981,7 @@ class CameraView @JvmOverloads constructor(
                         autoZoom.stage = "location"
                     }
 
-                    if (autoZoom.stage == "location") {
+                    if (autoZoom.stage == "location" && !autoZoom.isPortrait) {
                         var resIou = iou(
                             if (refPredictionObj.bbox.xywhnCorrected == null)
                                 refPredictionObj.bbox.xywhn else refPredictionObj.bbox.xywhnCorrected!!,
@@ -985,27 +996,34 @@ class CameraView @JvmOverloads constructor(
                             autoZoom.stage = "kps_comparison"
                         }
                     }
+                    if (autoZoom.isPortrait) autoZoom.stage = "kps_comparison"
 
                     if (autoZoom.stage == "kps_comparison") {
                         if (pulseRectAnimation.state.visible) pulseRectAnimation.setAnimationVisible(false)
-                        var resIou = iou(
-                            if (refPredictionObj.bbox.xywhnCorrected == null)
-                                refPredictionObj.bbox.xywhn else refPredictionObj.bbox.xywhnCorrected!!,
-                            currentPredictionObj.bbox.xywhn)
+                        var resIou = 0f
+                        if (!autoZoom.isPortrait) {
+                            resIou = iou(
+                                if (refPredictionObj.bbox.xywhnCorrected == null)
+                                    refPredictionObj.bbox.xywhn else refPredictionObj.bbox.xywhnCorrected!!,
+                                currentPredictionObj.bbox.xywhn
+                            )
 
-                        Log.d(TAG, "resIou, ${resIou}")
+                            Log.d(TAG, "resIou, ${resIou}")
 
-                        if (resIou < iouThreshold) {
-                            autoZoom.kpsComparisonDurationCount = 0
-                            if (!pulseRectAnimation.state.visible) pulseRectAnimation.setAnimationVisible(true)
-
-                        } else {
+                            if (resIou < iouThreshold) {
+                                autoZoom.kpsComparisonDurationCount = 0
+                                if (!pulseRectAnimation.state.visible) pulseRectAnimation.setAnimationVisible(
+                                    true
+                                )
+                            }
+                        }
+                        if (autoZoom.isPortrait || resIou > iouThreshold) {
                             var compareRes: Float?
                             if (comparePoseUseSmoothing) {
                                 val poseComparisonResult = poseComparator.compare(refPredictionObj, currentPredictionObj, result.imageShape)
                                 compareRes = poseComparisonResult.overallScore
                                 poseComparisonDetails = poseComparisonResult.details
-                                Log.d(TAG, "compareRes $compareRes, poseComparisonDetails $poseComparisonDetails")
+                                // Log.d(TAG, "compareRes $compareRes, poseComparisonDetails $poseComparisonDetails")
 
                             } else {
                                 if (poseComparisonMode != "cosine") {
@@ -1072,7 +1090,7 @@ class CameraView @JvmOverloads constructor(
                 val state = OverlayState(
                     result = result,
                     refDetectionResult = refDetectionResult,
-                    isFrontCamera = lensFacing == CameraSelector.LENS_FACING_FRONT,
+                    isFrontCamera = isFrontCamera,
                     captureRequested = captureRequested,
                     showPulseRect = pulseRectAnimation.state.visible,
                     rectAlpha = pulseRectAnimation.state.animationOffset.toInt(),
@@ -1080,6 +1098,7 @@ class CameraView @JvmOverloads constructor(
                     arrowAnimationOffset = backArrowAnimation.state.animationOffset,
                     poseComparisonDetails = poseComparisonDetails,
                     visualizationMode = visualizationMode,
+                    isPortrait = autoZoom.isPortrait
                 )
                 post {
                     overlayView.updateState(state)

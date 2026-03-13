@@ -12,6 +12,7 @@ import org.opencv.core.Size
 
 import android.graphics.Bitmap
 import com.google.mediapipe.framework.image.BitmapImageBuilder
+import com.google.mediapipe.framework.image.MPImage
 import com.google.mediapipe.tasks.core.BaseOptions
 import com.google.mediapipe.tasks.core.Delegate
 import com.google.mediapipe.tasks.vision.core.RunningMode
@@ -38,6 +39,9 @@ class MediaPipeEstimator(
     private val rotateMatrix = Matrix()
     private var reusableBitmap: Bitmap? = null
     private var reusableCanvas: Canvas? = null
+
+    private var mpImage: MPImage? = null
+    private var mpImageBitmap: Bitmap? = null
 
     private fun initLandmarkerWithDelegate(delegate: Delegate) {
         val baseOptions = BaseOptions.builder()
@@ -90,47 +94,71 @@ class MediaPipeEstimator(
         }
     }
 
-    override fun predict(bitmap: Bitmap, origWidth: Int, origHeight: Int, rotateForCamera: Boolean, isLandscape: Boolean, rotationDegrees: Int): InstanceObj {
+    override fun predict(
+        bitmap: Bitmap,
+        origWidth: Int,
+        origHeight: Int,
+        rotateForCamera: Boolean,
+        isLandscape: Boolean,
+        isFrontCamera: Boolean,
+        rotationDegrees: Int
+    ): InstanceObj {
+
         t0 = System.nanoTime()
         val timestampMs = System.nanoTime() / 1_000_000
 
-        val rotatedBitmap = if (rotateForCamera) {
-            val newWidth = bitmap.height
-            val newHeight = bitmap.width
+        val processedBitmap = if (rotateForCamera || isFrontCamera) {
 
-            if (reusableBitmap == null || reusableBitmap!!.width != origWidth || reusableBitmap!!.height != origHeight) {
+            if (reusableBitmap == null ||
+                reusableBitmap!!.width != origWidth ||
+                reusableBitmap!!.height != origHeight
+            ) {
                 reusableBitmap = Bitmap.createBitmap(origWidth, origHeight, Bitmap.Config.ARGB_8888)
                 reusableCanvas = Canvas(reusableBitmap!!)
             }
 
             rotateMatrix.reset()
             rotateMatrix.postTranslate(-bitmap.width / 2f, -bitmap.height / 2f)
-            rotateMatrix.postRotate(rotationDegrees.toFloat())
-            rotateMatrix.postTranslate(newWidth / 2f, newHeight / 2f)
+            if (rotateForCamera) {
+                rotateMatrix.postRotate(rotationDegrees.toFloat())
+            }
+            if (isFrontCamera) {
+                rotateMatrix.postScale(-1f, 1f, 0f, 0f)
+            }
+            rotateMatrix.postTranslate(origWidth / 2f, origHeight / 2f)
 
             reusableCanvas!!.drawColor(Color.BLACK, PorterDuff.Mode.CLEAR)
             reusableCanvas!!.drawBitmap(bitmap, rotateMatrix, null)
 
             reusableBitmap!!
+
         } else {
             bitmap
         }
 
-        val mpImage = BitmapImageBuilder(rotatedBitmap).build()
-        val result = poseLandmarker.detectForVideo(mpImage, timestampMs)
+        if (mpImage == null || mpImageBitmap !== processedBitmap) {
+            mpImage = BitmapImageBuilder(processedBitmap).build()
+            mpImageBitmap = processedBitmap
+        }
 
-        Log.d(TAG, "MediaPipe t3 diff: ${(System.nanoTime() - t3) / 1_000_000.0} ms, t2: $t2")
-        updateTiming()
+        val result = poseLandmarker.detectForVideo(mpImage!!, timestampMs)
 
-        val prediction = mapToPredictionObj(result, rotatedBitmap.width.toFloat(), rotatedBitmap.height.toFloat())
+        val prediction = mapToPredictionObj(
+            result,
+            processedBitmap.width.toFloat(),
+            processedBitmap.height.toFloat(),
+        )
+
         val infTime = (System.nanoTime() - t0) / 1_000_000.0
         Log.d(TAG, "MediaPipe inference time: $infTime ms")
+        Log.d(TAG, "MediaPipe t3 diff: ${(System.nanoTime() - t3) / 1_000_000.0} ms, t2: $t2")
         Log.d(TAG, "MediaPipe fps: ${if (t4 > 0) (1.0 / t4) else 0.0}")
+        updateTiming()
 
         if (prediction == null) {
             return InstanceObj(
                 imageShape = Size(origWidth.toDouble(), origHeight.toDouble()),
-                objects = mutableListOf<PredictionObj>(),
+                objects = mutableListOf(),
                 speed = t2,
                 fps = if (t4 > 0) (1.0 / t4) else 0.0,
             )
@@ -138,7 +166,7 @@ class MediaPipeEstimator(
 
         return InstanceObj(
             imageShape = Size(origWidth.toDouble(), origHeight.toDouble()),
-            objects = listOf(prediction!!),
+            objects = listOf(prediction),
             speed = t2,
             fps = if (t4 > 0) (1.0 / t4) else 0.0,
         )

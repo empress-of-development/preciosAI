@@ -211,13 +211,13 @@ class PhotoCapturePlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCal
             }
 
             "switchCamera" -> {
-                Log.d(TAG, "switchCamera start!")
-
                 val platformView = platformViewFactory.activeViews.values.first()
                 if (platformView != null) {
                     platformView.cameraViewInstance.switchCamera()
                     if (platformView.cameraViewInstance.refDetectionResult != null)
-                        platformView.cameraViewInstance.autoZoom.getRefZoomData(platformView.cameraViewInstance.refDetectionResult!!.objects[0])
+                        platformView.cameraViewInstance.autoZoom.getRefZoomData(
+                            platformView.cameraViewInstance.refDetectionResult!!.objects[0]
+                        )
                     result.success(null)
                 }
             }
