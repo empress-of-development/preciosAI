@@ -125,6 +125,7 @@ android {
         implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0")
 
         implementation("com.google.mediapipe:tasks-vision:0.10.32")
+        implementation("com.google.android.material:material:1.13.0")
     }
 }
 
