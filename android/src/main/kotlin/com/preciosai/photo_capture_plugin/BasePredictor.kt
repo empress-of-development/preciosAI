@@ -1,7 +1,6 @@
 package com.preciosai.photo_capture_plugin
 
 import android.graphics.Bitmap
-import org.tensorflow.lite.Interpreter
 import org.opencv.core.Size
 
 

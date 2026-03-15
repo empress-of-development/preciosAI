@@ -15,6 +15,15 @@ import 'neuro_scanner.dart';
 
 enum AlbumImageSource { asset, file }
 
+Map<String, dynamic>? _cachedAssetManifest;
+
+Future<Map<String, dynamic>> _getAssetManifest() async {
+  if (_cachedAssetManifest != null) return _cachedAssetManifest!;
+  final jsonStr = await rootBundle.loadString('AssetManifest.json');
+  _cachedAssetManifest = json.decode(jsonStr);
+  return _cachedAssetManifest!;
+}
+
 class AlbumImageRef {
   final AlbumImageSource source;
   final String value; // asset path or file path
@@ -224,8 +233,7 @@ class _AlbumScreenState extends State<AlbumScreen> {
   }
 
   Future<void> pickRandomfromAssets() async {
-    final manifestJson = await rootBundle.loadString('AssetManifest.json');
-    final Map<String, dynamic> manifestMap = jsonDecode(manifestJson);
+    final manifestMap = await _getAssetManifest();
 
     // Фильтруем нужные файлы
     final jpgFiles = manifestMap.keys
@@ -302,10 +310,13 @@ class _AlbumScreenState extends State<AlbumScreen> {
               ),
               child: Container(
                 color: Colors.white.withOpacity(0.35),
-                height: kToolbarHeight * 1.3 + MediaQuery.of(context).padding.top,
+                height:
+                    kToolbarHeight * 1.3 + MediaQuery.of(context).padding.top,
                 child: SafeArea(
                   child: Padding(
-                    padding: const EdgeInsets.only(top: kToolbarHeight * 1.3 / 4),
+                    padding: const EdgeInsets.only(
+                      top: kToolbarHeight * 1.3 / 4,
+                    ),
                     child: Center(
                       child: Text(
                         "Let's choose a reference photo",
@@ -371,21 +382,24 @@ class _AlbumScreenState extends State<AlbumScreen> {
                                   context,
                                   PageRouteBuilder(
                                     transitionDuration: const Duration(
-                                      milliseconds: 450,
+                                      milliseconds: 250,
                                     ),
                                     pageBuilder: (_, __, ___) =>
                                         AlbumDetailScreen(album: album),
                                     transitionsBuilder:
                                         (_, animation, __, child) {
-                                          return FadeTransition(
-                                            opacity: animation,
-                                            child: SlideTransition(
-                                              position: Tween(
-                                                begin: const Offset(0, 0.05),
-                                                end: Offset.zero,
-                                              ).animate(animation),
-                                              child: child,
-                                            ),
+                                          return SlideTransition(
+                                            position:
+                                                Tween(
+                                                  begin: const Offset(1.0, 0.0),
+                                                  end: Offset.zero,
+                                                ).animate(
+                                                  CurvedAnimation(
+                                                    parent: animation,
+                                                    curve: Curves.easeOutQuad,
+                                                  ),
+                                                ),
+                                            child: child,
                                           );
                                         },
                                   ),
@@ -476,54 +490,58 @@ class AlbumCard extends StatelessWidget {
     return GestureDetector(
       onLongPress: onLongPress,
       onTap: onTap,
-      child: Hero(
-        tag: 'album_${album.title}_${album.uuid}',
-
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(
-              color: Colors.deepPurple.withOpacity(0.7),
-              width: 8,
-            ),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(
+            color: Colors.deepPurple.withOpacity(0.7),
+            width: 8,
           ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(22),
-            child: Stack(
-              children: [
-                Positioned.fill(
-                  child: album.cover.source == AlbumImageSource.asset
-                      ? Image.asset(album.cover.value, fit: BoxFit.cover, cacheWidth: 400)
-                      : Image.file(File(album.cover.value), fit: BoxFit.cover, cacheWidth: 400),
-                ),
-                Positioned.fill(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.bottomCenter,
-                        end: Alignment.topCenter,
-                        colors: [
-                          Colors.black.withOpacity(0.6),
-                          Colors.transparent,
-                        ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(22),
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: album.cover.source == AlbumImageSource.asset
+                    ? Image.asset(
+                        album.cover.value,
+                        fit: BoxFit.cover,
+                        cacheWidth: 400,
+                      )
+                    : Image.file(
+                        File(album.cover.value),
+                        fit: BoxFit.cover,
+                        cacheWidth: 400,
                       ),
+              ),
+              Positioned.fill(
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.bottomCenter,
+                      end: Alignment.topCenter,
+                      colors: [
+                        Colors.black.withOpacity(0.6),
+                        Colors.transparent,
+                      ],
                     ),
                   ),
                 ),
-                Positioned(
-                  left: 12,
-                  bottom: 12,
-                  child: Text(
-                    album.title,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
+              ),
+              Positioned(
+                left: 12,
+                bottom: 12,
+                child: Text(
+                  album.title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -544,11 +562,18 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
   AlbumImageRef? selectedImage;
   File? pickedImage;
 
-  Map<String, dynamic> _manifestMap = {};
+  List<AlbumImageRef> _images = [];
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
+    // If we already have the paths, show them immediately to prevent "twitching"
+    if (widget.album.imagesPathList != null &&
+        widget.album.imagesPathList!.isNotEmpty) {
+      _images = widget.album.imagesPathList!;
+      _isLoading = false;
+    }
     _loadAssetImages();
   }
 
@@ -571,24 +596,30 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
   }
 
   Future<void> _loadAssetImages() async {
-    final manifestContent = await rootBundle.loadString('AssetManifest.json');
-    final manifestMap = json.decode(manifestContent);
-    setState(() {
-      _manifestMap = manifestMap;
-    });
+    List<AlbumImageRef> loadedImages = [];
+
+    if (widget.album.imagesPathList != null &&
+        widget.album.imagesPathList!.isNotEmpty) {
+      loadedImages = widget.album.imagesPathList!;
+    } else if (widget.album.imagesGeneralPath != null) {
+      final manifestMap = await _getAssetManifest();
+      loadedImages = manifestMap.keys
+          .where((key) => key.startsWith(widget.album.imagesGeneralPath!))
+          .map((path) => AlbumImageRef.asset(path))
+          .toList();
+    }
+
+    if (mounted) {
+      setState(() {
+        _images = loadedImages;
+        _isLoading = false;
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final List<AlbumImageRef> images;
-    if (widget.album.imagesGeneralPath != null) {
-      images = _manifestMap.keys
-          .where((key) => key.startsWith(widget.album.imagesGeneralPath!))
-          .map((path) => AlbumImageRef.asset(path))
-          .toList();
-    } else {
-      images = widget.album.imagesPathList!;
-    }
+    final images = _images;
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -649,8 +680,9 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
                   crossAxisCount: 2,
                   mainAxisSpacing: 12,
                   crossAxisSpacing: 12,
-
+                  addAutomaticKeepAlives: true,
                   itemCount: images.length,
+
                   itemBuilder: (_, index) {
                     final img = images[index];
                     final isSelected = selectedImage == img;
@@ -679,7 +711,11 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(16),
                               child: img.source == AlbumImageSource.asset
-                                  ? Image.asset(img.value, fit: BoxFit.cover, cacheWidth: 600)
+                                  ? Image.asset(
+                                      img.value,
+                                      fit: BoxFit.cover,
+                                      cacheWidth: 600,
+                                    )
                                   : Image.file(
                                       File(img.value),
                                       fit: BoxFit.cover,
