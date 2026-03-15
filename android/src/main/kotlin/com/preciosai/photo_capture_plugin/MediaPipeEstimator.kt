@@ -65,27 +65,42 @@ class MediaPipeEstimator(
         val prefs = context.getSharedPreferences("mediapipe_prefs", Context.MODE_PRIVATE)
         val gpuWorked = prefs.getBoolean("gpu_works_on_this_device", true)
         val delegate = if (gpuWorked) Delegate.GPU else Delegate.CPU
-        Log.d(TAG, "GPU works on this device: $gpuWorked, delegate $delegate")
+        Log.d(TAG, "Trying delegate: $delegate")
 
-        val success = withTimeoutOrNull(6_000L) {
-            try {
-                withContext(Dispatchers.IO) {
-                    initLandmarkerWithDelegate(delegate)
-                }
-                true
-            } catch (e: Exception) {
-                null
-            }
-        }
+        val gpuSuccess = tryInitWithRealTimeout(delegate, timeoutMs = 6_000L)
 
-        if (success == null && delegate == Delegate.GPU) {
-            // Запомнить что GPU не работает на этом устройстве
+        if (!gpuSuccess && delegate == Delegate.GPU) {
             prefs.edit().putBoolean("gpu_works_on_this_device", false).apply()
-            Log.w(TAG, "GPU failed, saving preference and switching to CPU")
+            Log.w(TAG, "GPU hung, saved to prefs, switching to CPU")
+            tryInitWithRealTimeout(Delegate.CPU, timeoutMs = 5_000L)
+        }
+    }
 
-            withContext(Dispatchers.IO) {
-                initLandmarkerWithDelegate(Delegate.CPU)
+    private suspend fun tryInitWithRealTimeout(delegate: Delegate, timeoutMs: Long): Boolean {
+        return suspendCancellableCoroutine { continuation ->
+            val thread = Thread {
+                try {
+                    initLandmarkerWithDelegate(delegate)
+                    Log.d(TAG, "Loaded on $delegate")
+                    if (continuation.isActive) continuation.resumeWith(Result.success(true))
+                } catch (e: Exception) {
+                    Log.w(TAG, "$delegate threw: ${e.message}")
+                    if (continuation.isActive) continuation.resumeWith(Result.success(false))
+                }
             }
+
+            val timeoutThread = Thread {
+                Thread.sleep(timeoutMs)
+                if (continuation.isActive) {
+                    Log.w(TAG, "$delegate timed out after ${timeoutMs}ms")
+                    continuation.resumeWith(Result.success(false))
+                    thread.interrupt()
+                }
+            }
+
+            thread.start()
+            timeoutThread.isDaemon = true
+            timeoutThread.start()
         }
     }
 
