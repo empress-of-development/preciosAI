@@ -1,21 +1,27 @@
-# Keep SnakeYAML classes
--keep class org.yaml.snakeyaml.** { *; }
--dontwarn org.yaml.snakeyaml.**
+# Flutter
+-keep class io.flutter.** { *; }
+-keep class io.flutter.plugins.** { *; }
 
-# Keep java.beans classes for SnakeYAML
--keep class java.beans.** { *; }
--dontwarn java.beans.**
+# MediaPipe — полное сохранение
+-keep class com.google.mediapipe.** { *; }
+-keep interface com.google.mediapipe.** { *; }
+-keep enum com.google.mediapipe.** { *; }
+-keepclassmembers class com.google.mediapipe.** { *; }
+-keepclasseswithmembers class com.google.mediapipe.** { *; }
+-keepattributes *Annotation*
+-keepattributes Signature
+-keepattributes Exceptions
+-keepattributes InnerClasses
+-keepattributes EnclosingMethod
+-dontwarn com.google.mediapipe.**
 
-# Keep property utilities
--keep class org.yaml.snakeyaml.introspector.** { *; }
--keep class org.yaml.snakeyaml.constructor.** { *; }
--keep class org.yaml.snakeyaml.representer.** { *; }
-
-# Keep TensorFlow Lite classes
--keep class org.tensorflow.** { *; }
--keep interface org.tensorflow.** { *; }
-
-# Keep native methods
--keepclasseswithmembernames class * {
-    native <methods>;
+# Предотвращает проблемы со статическими инициализаторами
+-keepclassmembers class * {
+    static <fields>;
+    static <methods>;
 }
+
+# Protobuf (используется внутри MediaPipe)
+-keep class com.google.protobuf.** { *; }
+-keepclassmembers class com.google.protobuf.** { *; }
+-dontwarn com.google.protobuf.**

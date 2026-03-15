@@ -286,168 +286,174 @@ class _AlbumScreenState extends State<AlbumScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      body: Stack(
-        children: [
-          const NeuralNetworkWithBlurredCircles(),
+      extendBody: true,
+      extendBodyBehindAppBar: true,
+      body: MediaQuery.removePadding(
+        context: context,
+        removeBottom: true,
+        child: Stack(
+          children: [
+            const NeuralNetworkWithBlurredCircles(),
 
-          ClipRRect(
-            borderRadius: const BorderRadius.only(
-              bottomLeft: Radius.circular(24),
-              bottomRight: Radius.circular(24),
-            ),
-            child: Container(
-              color: Colors.white.withOpacity(0.35),
-              height: kToolbarHeight * 1.3 + MediaQuery.of(context).padding.top,
-              child: SafeArea(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: kToolbarHeight * 1.3 / 4),
-                  child: Center(
-                    child: Text(
-                      "Let's choose a reference photo",
-                      style: TextStyle(
-                        color: Colors.grey.shade900,
-                        fontSize: 26,
-                        fontWeight: FontWeight.bold,
+            ClipRRect(
+              borderRadius: const BorderRadius.only(
+                bottomLeft: Radius.circular(24),
+                bottomRight: Radius.circular(24),
+              ),
+              child: Container(
+                color: Colors.white.withOpacity(0.35),
+                height: kToolbarHeight * 1.3 + MediaQuery.of(context).padding.top,
+                child: SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: kToolbarHeight * 1.3 / 4),
+                    child: Center(
+                      child: Text(
+                        "Let's choose a reference photo",
+                        style: TextStyle(
+                          color: Colors.grey.shade900,
+                          fontSize: 26,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ),
                 ),
               ),
             ),
-          ),
 
-          Column(
-            children: [
-              SizedBox(
-                height: kToolbarHeight + MediaQuery.of(context).padding.top,
-              ),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: GridView.builder(
-                    itemCount: albums.length + 1,
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          mainAxisSpacing: 16,
-                          crossAxisSpacing: 16,
-                          childAspectRatio: 0.85,
-                        ),
-                    itemBuilder: (context, index) {
-                      if (index == albums.length) {
-                        return AddAlbumCard(
-                          onTap: () async {
-                            final created = await Navigator.push<Album?>(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const CreateAlbumScreen(),
-                              ),
-                            );
-
-                            if (created != null) {
-                              setState(() => albums.add(created));
-                              await AlbumStorage.saveAlbum(created);
-                            }
-                          },
-                        );
-                      }
-
-                      final album = albums[index];
-                      final canDelete = !protectedIndexes.contains(index);
-
-                      return Stack(
-                        children: [
-                          AlbumCard(
-                            album: album,
-                            onLongPress: () => _tryDeleteAlbum(index),
-
+            Column(
+              children: [
+                SizedBox(
+                  height: kToolbarHeight + MediaQuery.of(context).padding.top,
+                ),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: GridView.builder(
+                      itemCount: albums.length + 1,
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            mainAxisSpacing: 16,
+                            crossAxisSpacing: 16,
+                            childAspectRatio: 0.85,
+                          ),
+                      itemBuilder: (context, index) {
+                        if (index == albums.length) {
+                          return AddAlbumCard(
                             onTap: () async {
-                              final updated = await Navigator.push<Album?>(
+                              final created = await Navigator.push<Album?>(
                                 context,
-                                PageRouteBuilder(
-                                  transitionDuration: const Duration(
-                                    milliseconds: 450,
-                                  ),
-                                  pageBuilder: (_, __, ___) =>
-                                      AlbumDetailScreen(album: album),
-                                  transitionsBuilder:
-                                      (_, animation, __, child) {
-                                        return FadeTransition(
-                                          opacity: animation,
-                                          child: SlideTransition(
-                                            position: Tween(
-                                              begin: const Offset(0, 0.05),
-                                              end: Offset.zero,
-                                            ).animate(animation),
-                                            child: child,
-                                          ),
-                                        );
-                                      },
+                                MaterialPageRoute(
+                                  builder: (_) => const CreateAlbumScreen(),
                                 ),
                               );
 
-                              if (updated != null) {
-                                final i = albums.indexWhere(
-                                  (a) => a.uuid == updated.uuid,
-                                );
-                                if (i != -1) {
-                                  setState(() => albums[i] = updated);
-
-                                  if (canDelete)
-                                    await AlbumStorage.updateAlbum(updated);
-                                }
+                              if (created != null) {
+                                setState(() => albums.add(created));
+                                await AlbumStorage.saveAlbum(created);
                               }
                             },
-                          ),
+                          );
+                        }
 
-                          if (canDelete)
-                            Positioned(
-                              top: 8,
-                              right: 8,
-                              child: GestureDetector(
-                                onTap: () => _tryDeleteAlbum(index),
-                                child: Container(
-                                  padding: const EdgeInsets.all(6),
-                                  decoration: BoxDecoration(
-                                    color: Colors.black54,
-                                    borderRadius: BorderRadius.circular(10),
+                        final album = albums[index];
+                        final canDelete = !protectedIndexes.contains(index);
+
+                        return Stack(
+                          children: [
+                            AlbumCard(
+                              album: album,
+                              onLongPress: () => _tryDeleteAlbum(index),
+
+                              onTap: () async {
+                                final updated = await Navigator.push<Album?>(
+                                  context,
+                                  PageRouteBuilder(
+                                    transitionDuration: const Duration(
+                                      milliseconds: 450,
+                                    ),
+                                    pageBuilder: (_, __, ___) =>
+                                        AlbumDetailScreen(album: album),
+                                    transitionsBuilder:
+                                        (_, animation, __, child) {
+                                          return FadeTransition(
+                                            opacity: animation,
+                                            child: SlideTransition(
+                                              position: Tween(
+                                                begin: const Offset(0, 0.05),
+                                                end: Offset.zero,
+                                              ).animate(animation),
+                                              child: child,
+                                            ),
+                                          );
+                                        },
                                   ),
-                                  child: const Icon(
-                                    Icons.delete_outline,
-                                    size: 20,
-                                    color: Colors.white,
+                                );
+
+                                if (updated != null) {
+                                  final i = albums.indexWhere(
+                                    (a) => a.uuid == updated.uuid,
+                                  );
+                                  if (i != -1) {
+                                    setState(() => albums[i] = updated);
+
+                                    if (canDelete)
+                                      await AlbumStorage.updateAlbum(updated);
+                                  }
+                                }
+                              },
+                            ),
+
+                            if (canDelete)
+                              Positioned(
+                                top: 8,
+                                right: 8,
+                                child: GestureDetector(
+                                  onTap: () => _tryDeleteAlbum(index),
+                                  child: Container(
+                                    padding: const EdgeInsets.all(6),
+                                    decoration: BoxDecoration(
+                                      color: Colors.black54,
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: const Icon(
+                                      Icons.delete_outline,
+                                      size: 20,
+                                      color: Colors.white,
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
-                        ],
-                      );
-                    },
+                          ],
+                        );
+                      },
+                    ),
                   ),
                 ),
-              ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 32),
-                    child: RippleCircleButton(
-                      iconPath: 'assets/icons/add_photo.png',
-                      onTap: pickFromGallery,
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 32),
+                      child: RippleCircleButton(
+                        iconPath: 'assets/icons/add_photo.png',
+                        onTap: pickFromGallery,
+                      ),
                     ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 32),
-                    child: RippleCircleButton(
-                      iconPath: 'assets/icons/random_2.png',
-                      onTap: pickRandomfromAssets,
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 32),
+                      child: RippleCircleButton(
+                        iconPath: 'assets/icons/random_2.png',
+                        onTap: pickRandomfromAssets,
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ],
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

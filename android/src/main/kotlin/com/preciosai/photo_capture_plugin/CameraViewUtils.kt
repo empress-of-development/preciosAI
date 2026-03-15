@@ -201,20 +201,34 @@ object CameraViewUtils {
 
     fun assetFileFromFlutter(context: Context, assetName: String): File {
         val file = File(context.filesDir, File(assetName).name)
-        if (file.exists() && file.length() > 0) return file
-        val flutterAssetPath = "flutter_assets/$assetName"
 
-        context.assets.open(flutterAssetPath).use { inputStream ->
-            FileOutputStream(file).use { outputStream ->
-                val buffer = ByteArray(4 * 1024)
-                var read: Int
-                while (inputStream.read(buffer).also { read = it } != -1) {
-                    outputStream.write(buffer, 0, read)
+        // If file already exists and is valid, don't re-copy
+        if (file.exists() && file.length() > 0) {
+            Log.d(TAG, "Using existing asset file: ${file.absolutePath}")
+            return file
+        }
+
+        val potentialPaths = listOf(
+            "flutter_assets/$assetName",
+            assetName,
+            "assets/flutter_assets/$assetName"
+        )
+
+        for (path in potentialPaths) {
+            try {
+                context.assets.open(path).use { inputStream ->
+                    FileOutputStream(file).use { outputStream ->
+                        inputStream.copyTo(outputStream)
+                    }
                 }
-                outputStream.flush()
+                Log.d(TAG, "Successfully copied asset from $path to ${file.absolutePath}")
+                return file
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to open asset at $path: ${e.message}")
             }
         }
-        return file
+
+        throw java.io.FileNotFoundException("Asset $assetName not found in any of $potentialPaths. Check if the file is compressed in AAB.")
     }
 
     fun imageProxyToRotatedMat(image: ImageProxy): Mat {

@@ -32,7 +32,7 @@ class _PoseSimilaritySliderButtonState extends State<PoseSimilaritySliderButton>
       children: [
         // Кнопка в правом верхнем углу
         Positioned(
-          top: 45,
+          top: 70,
           right: 16,
           child: GestureDetector(
             onTap: () {
@@ -198,7 +198,7 @@ class _VisualizationSettingsButtonState extends State<VisualizationSettingsButto
       children: [
         // Кнопка
         Positioned(
-          top: 45,
+          top: 70,
           left: 16,
           child: GestureDetector(
             onTap: () {
