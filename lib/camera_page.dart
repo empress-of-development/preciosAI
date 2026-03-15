@@ -37,6 +37,7 @@ class _CameraPageState extends State<CameraPage> {
 
   // Индикатор загруженности модели
   static bool modelLoaded = false;
+  final Completer<void> _modelReadyCompleter = Completer<void>();
 
   // Текстовые подсказки делаются только для первого кадра в рамках запуска приложения
   static bool _isFirstVisit = true;
@@ -55,7 +56,13 @@ class _CameraPageState extends State<CameraPage> {
         case 'onModelReady':
           final args = call.arguments as Map<Object?, Object?>;
           Logger.info("Kotlin model loading status: ${args['status']}");
-          modelLoaded = true;
+          setState(() {
+            modelLoaded = true;
+          });
+
+          if (!_modelReadyCompleter.isCompleted) {
+            _modelReadyCompleter.complete();
+          }
           break;
       }
     });
@@ -83,19 +90,19 @@ class _CameraPageState extends State<CameraPage> {
   }
 
   Future<void> sendImageToNative(
-    Uint8List bytes,
-    String? assetPredictions,
-  ) async {
-    // TODO wait for the model to initialize normally
-    if (!modelLoaded) await Future.delayed(const Duration(milliseconds: 6000));
-    setState(() {
-      modelLoaded = true;
-    });
+      Uint8List bytes,
+      String? assetPredictions,
+      ) async {
+
+    if (!modelLoaded) {
+      await _modelReadyCompleter.future;
+    }
 
     if (_isFirstVisit) {
       showHintsSequence();
       _isFirstVisit = false;
     }
+
     try {
       await methodChannel.invokeMethod('ref_frame_predict', {
         'bytes': bytes,
@@ -415,14 +422,14 @@ class _CameraPageState extends State<CameraPage> {
 
           if (!modelLoaded)
             Positioned(
-              top: screenHeight * 0.125,
+              top: screenHeight * 0.425,
               left: 0,
               right: 0,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   const CircularProgressIndicator(
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.indigo),
                     strokeWidth: 3,
                   ),
                   const SizedBox(height: 16),

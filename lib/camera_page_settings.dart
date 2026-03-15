@@ -30,6 +30,14 @@ class _PoseSimilaritySliderButtonState extends State<PoseSimilaritySliderButton>
   Widget build(BuildContext context) {
     return Stack(
       children: [
+        if (_isSliderVisible)
+          Positioned.fill(
+            child: GestureDetector(
+              onTap: () => setState(() => _isSliderVisible = false),
+              behavior: HitTestBehavior.translucent,
+              child: Container(color: Colors.transparent),
+            ),
+          ),
         // Кнопка в правом верхнем углу
         Positioned(
           top: 70,
@@ -76,7 +84,7 @@ class _PoseSimilaritySliderButtonState extends State<PoseSimilaritySliderButton>
 
         // Ползунок
         Positioned(
-          top: 100,
+          top: 125,
           right: 16,
           child: AnimatedOpacity(
             opacity: _isSliderVisible ? 1.0 : 0.0,
@@ -196,7 +204,14 @@ class _VisualizationSettingsButtonState extends State<VisualizationSettingsButto
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        // Кнопка
+        if (_isPanelVisible)
+          Positioned.fill(
+            child: GestureDetector(
+              onTap: () => setState(() => _isPanelVisible = false),
+              behavior: HitTestBehavior.translucent,
+              child: Container(color: Colors.transparent),
+            ),
+          ),
         Positioned(
           top: 70,
           left: 16,
@@ -241,7 +256,7 @@ class _VisualizationSettingsButtonState extends State<VisualizationSettingsButto
 
         // Выпадающая панель с выбором опций
         Positioned(
-          top: 100,
+          top: 125,
           left: 16,
           child: AnimatedOpacity(
             opacity: _isPanelVisible ? 1.0 : 0.0,
