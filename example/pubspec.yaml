@@ -1,6 +1,6 @@
 name: preciosai_example
 publish_to: "none" # Remove this line if you wish to publish to pub.dev
-version: 1.0.0+2
+version: 1.0.1+1
 
 environment:
   sdk: ^3.8.1

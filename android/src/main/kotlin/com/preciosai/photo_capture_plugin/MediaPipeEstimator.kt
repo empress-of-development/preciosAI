@@ -9,6 +9,7 @@ import java.io.File
 import kotlin.math.max
 import kotlin.math.min
 import org.opencv.core.Size
+import kotlinx.coroutines.*
 
 import android.graphics.Bitmap
 import com.google.mediapipe.framework.image.BitmapImageBuilder
@@ -60,23 +61,39 @@ class MediaPipeEstimator(
         poseLandmarker = PoseLandmarker.createFromOptions(context, optionsBuilder.build())
     }
 
+    private suspend fun initLandmarker() {
+        val prefs = context.getSharedPreferences("mediapipe_prefs", Context.MODE_PRIVATE)
+        val gpuWorked = prefs.getBoolean("gpu_works_on_this_device", true)
+        val delegate = if (gpuWorked) Delegate.GPU else Delegate.CPU
+        Log.d(TAG, "GPU works on this device: $gpuWorked, delegate $delegate")
+
+        val success = withTimeoutOrNull(6_000L) {
+            try {
+                withContext(Dispatchers.IO) {
+                    initLandmarkerWithDelegate(delegate)
+                }
+                true
+            } catch (e: Exception) {
+                null
+            }
+        }
+
+        if (success == null && delegate == Delegate.GPU) {
+            // Запомнить что GPU не работает на этом устройстве
+            prefs.edit().putBoolean("gpu_works_on_this_device", false).apply()
+            Log.w(TAG, "GPU failed, saving preference and switching to CPU")
+
+            withContext(Dispatchers.IO) {
+                initLandmarkerWithDelegate(Delegate.CPU)
+            }
+        }
+    }
+
     init {
         Log.d(TAG, "MediaPipe init")
-
         modelPath = loadModelFromFlutterAsset(context, "assets/models/pose_landmarker_full.task")
-
-        try {
-            initLandmarkerWithDelegate(Delegate.GPU)
-            Log.d(TAG, "MediaPipe pose model loaded on GPU")
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to run on GPU: ${e.message}. Switch to CPU...")
-
-            try {
-                initLandmarkerWithDelegate(Delegate.CPU)
-                Log.d(TAG, "MediaPipe pose model loaded on CPU")
-            } catch (ex: Exception) {
-                Log.e(TAG, "Failed to run on GPU and CPU: ${ex.message}")
-            }
+        runBlocking {
+            initLandmarker()
         }
     }
 
@@ -103,7 +120,6 @@ class MediaPipeEstimator(
         isFrontCamera: Boolean,
         rotationDegrees: Int
     ): InstanceObj {
-
         t0 = System.nanoTime()
         val timestampMs = System.nanoTime() / 1_000_000
 
