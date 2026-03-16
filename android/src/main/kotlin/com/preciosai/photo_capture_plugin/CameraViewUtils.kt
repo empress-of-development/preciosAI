@@ -379,27 +379,19 @@ object CameraViewUtils {
 
     fun matToJpegBytes(
         mat: Mat,
-        jpegQuality: Int = 95
+        jpegQuality: Int = 100
     ): ByteArray {
         require(!mat.empty()) { "Mat is empty" }
 
-        // приводим Mat к RGBA
-        val rgba = Mat()
-        when (mat.channels()) {
-            4 -> mat.copyTo(rgba)
-            3 -> Imgproc.cvtColor(mat, rgba, Imgproc.COLOR_BGR2RGBA)
-            1 -> Imgproc.cvtColor(mat, rgba, Imgproc.COLOR_GRAY2RGBA)
-            else -> error("Unsupported Mat channels: ${mat.channels()}")
+        val bitmap = Bitmap.createBitmap(mat.cols(), mat.rows(), Bitmap.Config.ARGB_8888)
+        if (mat.channels() == 3) {
+            val rgba = Mat()
+            Imgproc.cvtColor(mat, rgba, Imgproc.COLOR_BGR2RGBA)
+            Utils.matToBitmap(rgba, bitmap)
+            rgba.release()
+        } else {
+            Utils.matToBitmap(mat, bitmap)
         }
-
-        // Mat -> Bitmap
-        val bitmap = Bitmap.createBitmap(
-            rgba.cols(),
-            rgba.rows(),
-            Bitmap.Config.ARGB_8888
-        )
-        Utils.matToBitmap(rgba, bitmap)
-        rgba.release()
 
         // Bitmap -> JPEG bytes
         val out = ByteArrayOutputStream()
@@ -412,4 +404,5 @@ object CameraViewUtils {
 
         return out.toByteArray()
     }
+
 }

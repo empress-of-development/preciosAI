@@ -131,6 +131,7 @@ class OverlayRenderer @JvmOverloads constructor(private val poseMode: String) {
             typeface = Typeface.MONOSPACE
         }
 
+        /*
         val bounds = Rect()
         var text = "Adjust the frame and"
         textPaint.getTextBounds(text, 0, text.length, bounds)
@@ -148,6 +149,7 @@ class OverlayRenderer @JvmOverloads constructor(private val poseMode: String) {
         y = (height + bounds_1.height()) / 6.5f + bounds.height()
 
         canvas.drawText(text, x, y, textPaint)
+         */
 
     }
 

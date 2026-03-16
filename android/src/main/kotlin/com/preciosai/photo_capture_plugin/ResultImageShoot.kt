@@ -27,7 +27,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import android.os.Environment
-
+import org.opencv.core.MatOfByte
+import org.opencv.core.MatOfInt
+import org.opencv.imgcodecs.Imgcodecs
 
 class ResultImageShoot {
     public var HDRMode = "takePhoto" // (imageAnalysis, takePhoto)
@@ -514,6 +516,67 @@ class ResultImageShoot {
         hdrFloat.release()
 
         return ldr
+    }
+
+    fun saveMatAndGetItems(
+        mat: Mat,
+        resolver: ContentResolver,
+        isFrontCamera: Boolean = false,
+        quality: Int = 100
+    ): ByteArray? {
+        if (mat.empty()) return null
+
+        val processedMat = Mat()
+
+        if (isFrontCamera) {
+            Core.flip(mat, processedMat, 1)
+        } else {
+            mat.copyTo(processedMat)
+        }
+
+        val bgrMat = Mat()
+        when (processedMat.channels()) {
+            4 -> Imgproc.cvtColor(processedMat, bgrMat, Imgproc.COLOR_RGBA2BGR)
+            3 -> processedMat.copyTo(bgrMat) // Предполагаем BGR (стандарт OpenCV)
+            1 -> Imgproc.cvtColor(processedMat, bgrMat, Imgproc.COLOR_GRAY2BGR)
+        }
+
+        val matOfByte = MatOfByte()
+        val parameters = MatOfInt(Imgcodecs.IMWRITE_JPEG_QUALITY, quality)
+
+        Imgcodecs.imencode(".jpg", bgrMat, matOfByte, parameters)
+        val jpegBytes = matOfByte.toArray()
+
+        processedMat.release()
+        bgrMat.release()
+        matOfByte.release()
+        parameters.release()
+
+        saveToGallery(jpegBytes, resolver)
+
+        return jpegBytes
+    }
+
+    private fun saveToGallery(bytes: ByteArray, resolver: ContentResolver) {
+        val filename = "PRS_${System.currentTimeMillis()}.jpg"
+        val values = ContentValues().apply {
+            put(MediaStore.Images.Media.DISPLAY_NAME, filename)
+            put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+            put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/PreciosAI")
+            put(MediaStore.Images.Media.IS_PENDING, 1)
+        }
+
+        val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+        uri?.let { targetUri ->
+            try {
+                resolver.openOutputStream(targetUri)?.use { it.write(bytes) }
+                values.clear()
+                values.put(MediaStore.Images.Media.IS_PENDING, 0)
+                resolver.update(targetUri, values, null, null)
+            } catch (e: Exception) {
+                resolver.delete(targetUri, null, null)
+            }
+        }
     }
 }
 

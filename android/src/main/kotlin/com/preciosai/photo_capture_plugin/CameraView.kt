@@ -174,8 +174,6 @@ class CameraView @JvmOverloads constructor(
     private val progressBarLottieAnimation = LottieAnimation(context, "assets/animation/progress_bar.json")
     private var reusableBitmap: Bitmap? = null
 
-    //private var modelLoadCallback: ((Boolean) -> Unit)? = null
-
     private val previewView: PreviewView = PreviewView(context).apply {
         implementationMode = PreviewView.ImplementationMode.COMPATIBLE
         scaleType = PreviewView.ScaleType.FIT_CENTER
@@ -241,12 +239,7 @@ class CameraView @JvmOverloads constructor(
             LayoutParams.MATCH_PARENT,
             LayoutParams.MATCH_PARENT
         ))
-
-        // Ensure overlay is visually above the preview container ???
-        //overlayView.elevation = 100f
-        //overlayView.translationZ = 100f
         previewContainer.elevation = 1f
-
 
         // Zoom anf focus
         scaleGestureDetector = ScaleGestureDetector(context,
@@ -375,108 +368,85 @@ class CameraView @JvmOverloads constructor(
 
         cameraProviderFuture = ProcessCameraProvider.getInstance(context)
         cameraProviderFuture.addListener({
-
             val cameraProvider = cameraProviderFuture.get()
-            extensionsManager = ExtensionsManager
-                .getInstanceAsync(context, cameraProvider)
-                .get()
+            extensionsManager = ExtensionsManager.getInstanceAsync(context, cameraProvider).get()
 
-            cameraSelector = CameraSelector.Builder()
-                .requireLensFacing(lensFacing)
-                .build()
+            cameraSelector = CameraSelector.Builder().requireLensFacing(lensFacing).build()
 
-            val isPreviewStabilizationSupported =
-                Preview.getPreviewCapabilities(cameraProvider.getCameraInfo(cameraSelector))
-                    .isStabilizationSupported
-            Log.d(TAG, "isPreviewStabilizationSupported $isPreviewStabilizationSupported")
+            val extensionMode = if (useHDR) ExtensionMode.HDR else ExtensionMode.NONE
+            val isExtensionAvailable = useHDR && extensionsManager.isExtensionAvailable(cameraSelector, extensionMode)
 
-            val resolutionSelector = ResolutionSelector.Builder()
-                .setAspectRatioStrategy(AspectRatioStrategy.RATIO_4_3_FALLBACK_AUTO_STRATEGY)
-                .setResolutionStrategy(
-                    ResolutionStrategy(
-                        android.util.Size(480, 640),
-                        ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER
-                    )
-                )
-                .build()
-
-            previewInit = try {
-                Preview.Builder()
-                    .setPreviewStabilizationEnabled(true)
-                    .setResolutionSelector(resolutionSelector)
-                    .build()
-            } catch (e: Exception) {
-                Log.d(TAG, "isPreviewStabilizationSupported false!!!")
-
-                Preview.Builder()
-                    .setTargetAspectRatio(AspectRatio.RATIO_4_3)
-                    .build()
+            val finalSelector = if (isExtensionAvailable) {
+                extensionsManager.getExtensionEnabledCameraSelector(cameraSelector, extensionMode)
+            } else {
+                cameraSelector
             }
+
+            // Unified Aspect Ratio Strategy for all use cases to prevent "No supported surface combination"
+            val ratioStrategy = AspectRatioStrategy.RATIO_4_3_FALLBACK_AUTO_STRATEGY
+
+            previewInit = Preview.Builder()
+                .setResolutionSelector(ResolutionSelector.Builder().setAspectRatioStrategy(ratioStrategy).build())
+                .build()
             previewInit?.setSurfaceProvider(previewView.surfaceProvider)
 
-            // ---------- ImageAnalysis ----------
+            val analysisSelector = ResolutionSelector.Builder()
+                .setAspectRatioStrategy(ratioStrategy)
+                .setResolutionStrategy(ResolutionStrategy(android.util.Size(480, 640), ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER))
+                .build()
+
             imageAnalysisInit = ImageAnalysis.Builder()
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                //.setTargetResolution(android.util.Size(480, 640))
-                .setResolutionSelector(resolutionSelector)
+                .setResolutionSelector(analysisSelector)
                 .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
                 .build()
 
-            cameraExecutor = Executors.newSingleThreadExecutor()
+            if (cameraExecutor == null) cameraExecutor = Executors.newSingleThreadExecutor()
             imageAnalysisInit!!.setAnalyzer(cameraExecutor!!) { imageProxy ->
                 onFrame(imageProxy)
                 imageProxy.close()
             }
 
-            setupOrientationListener(context, previewInit, imageAnalysisInit!!)
-            // ---------- ImageCapture ----------
-            imageCaptureInit = ImageCapture.Builder()
-                .setTargetAspectRatio(AspectRatio.RATIO_4_3)
-                .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+            val captureSelector = ResolutionSelector.Builder()
+                .setAspectRatioStrategy(ratioStrategy)
+                .setResolutionStrategy(ResolutionStrategy.HIGHEST_AVAILABLE_STRATEGY)
                 .build()
 
-            var cameraInfo = cameraProvider.getCameraInfo(cameraSelector)
-            var capabilities = ImageCapture.getImageCaptureCapabilities(cameraInfo)
-            val characs = Camera2CameraInfo.from(cameraInfo)
+            imageCaptureInit = ImageCapture.Builder()
+                .setResolutionSelector(captureSelector)
+                .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
+                .setJpegQuality(100)
+                .build()
 
-            val map = characs.getCameraCharacteristic(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
-            val sizes = map?.getOutputSizes(ImageFormat.JPEG)
-            Log.d("HDR", "JPEG sizes = ${sizes?.joinToString()}")
-            Log.d("HDR", "formats=${capabilities.supportedOutputFormats}, cameraInfo.sensorLandscapeRatio ${cameraInfo}")
-            Log.d("HDR", "formats=${capabilities.supportedOutputFormats.contains(ImageCapture.OUTPUT_FORMAT_JPEG)}")
 
-            // ---------- Bind ----------
-            val owner = lifecycleOwner
-            if (owner == null) {
-                Log.e(TAG, "No LifecycleOwner available")
-                return@addListener
-            }
+            setupOrientationListener(context, previewInit!!, imageAnalysisInit!!)
 
+            val owner = lifecycleOwner ?: return@addListener
             cameraProvider.unbindAll()
 
             try {
                 camera = cameraProvider.bindToLifecycle(
-                    owner,
-                    cameraSelector,
-                    previewInit,
-                    imageAnalysisInit,
-                    //imageCaptureInit
+                    owner, finalSelector, previewInit, imageAnalysisInit, imageCaptureInit
                 )
-
-                camera?.let { cam ->
-                    val zoomStateValue = cam.cameraInfo.zoomState.value
-                    zoomState.minZoomRatio = zoomStateValue?.minZoomRatio ?: 1f
-                    zoomState.maxZoomRatio = zoomStateValue?.maxZoomRatio ?: 10f
-                    zoomState.currentZoomRatio = zoomStateValue?.zoomRatio ?: 1f
-                    onZoomChanged?.invoke(zoomState.currentZoomRatio)
-                }
-
-                Log.d(TAG, "Camera setup completed successfully minZoomRatio ${zoomState.minZoomRatio}, maxZoomRatio ${zoomState.maxZoomRatio}")
-
+                Log.d(TAG, "Triple binding successful. " +
+                        "Preview: ${previewInit.resolutionInfo?.resolution}, " +
+                        "Analysis: ${imageAnalysisInit?.resolutionInfo?.resolution}, " +
+                        "Capture: ${imageCaptureInit.resolutionInfo?.resolution}")
             } catch (e: Exception) {
-                Log.e(TAG, "Use case binding failed", e)
+                Log.w(TAG, "Triple binding failed, falling back to Preview + Analysis", e)
+                try {
+                    camera = cameraProvider.bindToLifecycle(owner, finalSelector, previewInit, imageAnalysisInit)
+                } catch (e2: Exception) {
+                    Log.e(TAG, "Critical: Camera binding failed entirely", e2)
+                }
             }
 
+            camera?.cameraControl?.setZoomRatio(zoomState.currentZoomRatio)
+            camera?.let { cam ->
+                val zs = cam.cameraInfo.zoomState.value
+                zoomState.minZoomRatio = zs?.minZoomRatio ?: 1f
+                zoomState.maxZoomRatio = zs?.maxZoomRatio ?: 10f
+            }
         }, ContextCompat.getMainExecutor(context))
     }
 
@@ -567,135 +537,84 @@ class CameraView @JvmOverloads constructor(
             }
         }
 
+
     private suspend fun takePhotoWithExtensions(): List<ByteArray> {
-        val resImages: MutableList<ByteArray> = mutableListOf<ByteArray>()
+        val resImages = mutableListOf<ByteArray>()
 
-        val imageCapture = imageCaptureForResult
-            ?: throw IllegalStateException("ImageCapture not initialized")
+        val imageCapture = imageCaptureInit ?: throw IllegalStateException("ImageCapture not initialized")
+        val imageAnalysis = imageAnalysisInit
 
-
-        /*
-        val contentValues = ContentValues().apply {
-            put(MediaStore.MediaColumns.DISPLAY_NAME, "PRS_${System.currentTimeMillis()}.jpg")
-            put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
-            put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/PreciosAI")
-        }
-        val outputOptions = ImageCapture.OutputFileOptions
-            .Builder(
-                context.contentResolver,
-                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-                contentValues
-            )
-            .build()
-         */
-
-        var hdrBytes: ByteArray? = null
         if (useHDR && !hdrInProgress) {
             captureRequested = true
-            Log.d(TAG, "hdrInProgress repeat")
-            hdrBytes = resultImageShoot.HDR(camera!!, imageCapture, imageAnalysisForResult, cameraExecutor!!, context.contentResolver)
+            val hdrBytes = resultImageShoot.HDR(
+                camera!!, imageCapture, imageAnalysis!!, cameraExecutor!!, context.contentResolver
+            )
+            hdrBytes?.let { resImages.add(it) }
             hdrInProgress = false
         }
-        if (hdrBytes != null) {
-            Log.d(TAG, "add hdrBytes")
-            resImages.add(hdrBytes)
-        }
 
-        /*
-        // Save ordinary image without additional processing
-        val resImg = suspendCancellableCoroutine { cont ->
-            imageCapture.takePicture(
-                outputOptions,
-                cameraExecutor!!,
-                object : ImageCapture.OnImageSavedCallback {
-                    override fun onImageSaved(output: ImageCapture.OutputFileResults) {
-                        try {
-                            val uri = output.savedUri
-                                ?: return cont.resumeWithException(
-                                    IllegalStateException("SavedUri is null")
+        try {
+            val resImg = suspendCancellableCoroutine<ByteArray> { cont ->
+                imageCapture.takePicture(
+                    cameraExecutor!!,
+                    object : ImageCapture.OnImageCapturedCallback() {
+                        override fun onCaptureSuccess(image: ImageProxy) {
+                            try {
+                                val mat = CameraViewUtils.imageProxyToRotatedMat(image)
+                                image.close()
+
+                                val isFront = predictor?.isFrontCamera ?: false
+
+                                val jpegBytes = resultImageShoot.saveMatAndGetItems(
+                                    mat = mat,
+                                    resolver = context.contentResolver,
+                                    isFrontCamera = isFront,
+                                    quality = 95
                                 )
 
-                            context.contentResolver.openInputStream(uri).use { inputStream ->
-                                val bytes = inputStream!!.readBytes()
-                                val mat = CameraViewUtils.bytesToMat(bytes)
-                                val beigeMat = resultImageShoot.stylizeBeigeLook(mat)
-                                resultImageShoot.saveMatAsJpeg(beigeMat, context.contentResolver)
-                                cont.resume(bytes)
-                            }
+                                mat.release()
 
-                        } catch (e: Exception) {
-                            cont.resumeWithException(e)
+                                if (jpegBytes != null) {
+                                    cont.resume(jpegBytes)
+                                } else {
+                                    cont.resumeWithException(RuntimeException("Failed to process Mat"))
+                                }
+
+                            } catch (e: Exception) {
+                                cont.resumeWithException(e)
+                            }
+                        }
+
+                        override fun onError(exception: ImageCaptureException) {
+                            captureRequested = false
+                            cont.resumeWithException(exception)
                         }
                     }
-
-                    override fun onError(exception: ImageCaptureException) {
-                        captureRequested = false
-                        cont.resumeWithException(exception)
-                    }
-                }
-            )
-        }
-         */
-
-        val resImg = suspendCancellableCoroutine<ByteArray> { cont ->
-            imageCapture.takePicture(
-                cameraExecutor!!,
-                object : ImageCapture.OnImageCapturedCallback() {
-                    override fun onCaptureSuccess(image: ImageProxy) {
-                        try {
-                            val mat = CameraViewUtils.imageProxyToRotatedMat(image)
-                            image.close()
-
-                            if (predictor!!.isFrontCamera) {
-                                Core.flip(mat, mat, 1)
-                            }
-
-                            // TODO update image postprocessing
-                            // val beigeMat = resultImageShoot.stylizeBeigeLook(mat)
-                            val jpegBytes = CameraViewUtils.matToJpegBytes(mat)
-
-                            resultImageShoot.saveMatAsJpeg(mat, context.contentResolver)
-
-                            mat.release()
-                            // beigeMat.release()
-                            cont.resume(jpegBytes)
-
-                        } catch (e: Exception) {
-                            cont.resumeWithException(e)
-                        }
-                    }
-
-                    override fun onError(exception: ImageCaptureException) {
-                        captureRequested = false
-                        cont.resumeWithException(exception)
-                    }
-                }
-            )
+                )
+            }
+            resImages.add(resImg)
+        } catch (e: Exception) {
+            Log.e(TAG, "Capture error: ${e.message}")
         }
 
-        resImages.add(resImg)
         return resImages
     }
 
     private fun requestCapture() {
         Log.d(TAG, "requestCapture")
         if (captureRequested) return
-
         captureRequested = true
 
         mainScope.launch {
             try {
-                Log.d(TAG, "startCaptureModeWithExtensions")
-                val bytes = startCaptureModeWithExtensions()
+                // Trigger capture without unbinding or delays
+                val bytes = takePhotoWithExtensions()
 
-                val serialized: List<Map<String, Any>> = bytes.map { byteArray ->
-                    mapOf("data" to byteArray)
-                }
+                val serialized: List<Map<String, Any>> = bytes.map { mapOf("data" to it) }
                 sendResultPhotoPath(serialized)
             } catch (e: Throwable) {
                 Log.e(TAG, "Capture failed", e)
-            } finally {
-                //captureRequested = false
+                captureRequested = false
             }
         }
     }
@@ -1066,17 +985,10 @@ class CameraView @JvmOverloads constructor(
                                     mainScope.launch {
                                         try {
                                             previewView.post {
-                                                progressBarLottieAnimation.loadAndPlay(autoPlay = true, speed = 3f)
+                                                progressBarLottieAnimation.loadAndPlay(autoPlay = true, speed = 6f)
                                             }
+
                                             requestCapture()
-                                            /*
-                                            val res_bitmap = previewView.bitmap
-                                            bytes = CameraViewUtils.saveBitmapToGallery(
-                                                context,
-                                                res_bitmap!!,
-                                                "photo_${System.currentTimeMillis()}.jpg"
-                                            )
-                                             */
                                         } catch (e: Throwable) {
                                             Log.e(TAG, "Capture failed", e)
                                         }
