@@ -60,6 +60,7 @@ import android.hardware.camera2.CameraCharacteristics
 import android.view.OrientationEventListener
 import android.graphics.RectF
 
+import androidx.camera.camera2.interop.Camera2Interop
 
 // TODO костыль!
 const val MODEL_TYPE: String = "MediaPipeEstimator" // "MMPoseEstimator" "YOLOPoseEstimator" "MediaPipeEstimator"
@@ -412,12 +413,28 @@ class CameraView @JvmOverloads constructor(
                 .setResolutionStrategy(ResolutionStrategy.HIGHEST_AVAILABLE_STRATEGY)
                 .build()
 
-            imageCaptureInit = ImageCapture.Builder()
+            val imageCaptureBuilder = ImageCapture.Builder()
                 .setResolutionSelector(captureSelector)
                 .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
                 .setJpegQuality(100)
-                .build()
 
+            val camera2Config = Camera2Interop.Extender(imageCaptureBuilder)
+
+            Camera2Interop.Extender(imageCaptureBuilder)
+                .setCaptureRequestOption(
+                    CaptureRequest.EDGE_MODE,
+                    CaptureRequest.EDGE_MODE_HIGH_QUALITY
+                )
+                .setCaptureRequestOption(
+                    CaptureRequest.NOISE_REDUCTION_MODE,
+                    CaptureRequest.NOISE_REDUCTION_MODE_HIGH_QUALITY
+                )
+                .setCaptureRequestOption(
+                    CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE,
+                    CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE_ON
+                )
+
+            imageCaptureInit = imageCaptureBuilder.build()
 
             setupOrientationListener(context, previewInit!!, imageAnalysisInit!!)
 
