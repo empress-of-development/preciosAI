@@ -16,7 +16,9 @@ data class OverlayState(
     val arrowAnimationOffset: Float,
     val poseComparisonDetails: Map<String, Float?>? = null,
     val visualizationMode: String = "skeleton+capsules",
-    val isPortrait: Boolean = false
+    val isPortrait: Boolean = false,
+    val focusPoint: PointF? = null,
+    val focusAlpha: Int = 0
 )
 
 data class PoseTopology(
@@ -233,6 +235,18 @@ class OverlayRenderer @JvmOverloads constructor(private val poseMode: String) {
         if (state.captureRequested) {
             captureDraw(canvas, width, height)
             return
+        }
+
+        // Draw focus indicator
+        if (state.focusPoint != null && state.focusAlpha > 0) {
+            val focusPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.STROKE
+                color = Color.WHITE
+                strokeWidth = 4f
+                alpha = state.focusAlpha
+            }
+            val size = 150f
+            canvas.drawCircle(state.focusPoint.x, state.focusPoint.y, size / 2, focusPaint)
         }
 
         if (state.result == null || state.refDetectionResult == null) return

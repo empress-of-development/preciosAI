@@ -16,6 +16,7 @@ data class AnimationState(
     var animationOffset: Float = 0f,
     val duration: Long = 1000L,
     val limits: Pair<Float, Float>,
+    var repeatCount: Int = ValueAnimator.INFINITE
 )
 
 class AnimationController(
@@ -27,7 +28,7 @@ class AnimationController(
     public val animator = ValueAnimator.ofFloat(state.limits.first, state.limits.second).apply {
         duration = state.duration
         repeatMode = ValueAnimator.RESTART
-        repeatCount = ValueAnimator.INFINITE
+        repeatCount = state.repeatCount
         addUpdateListener {
             state.animationOffset = it.animatedValue as Float
             requestInvalidate()
@@ -35,6 +36,15 @@ class AnimationController(
     }
 
     fun setAnimationVisible(visible: Boolean) {
+        if (visible && state.repeatCount == 0) {
+            state.visible = true
+            post {
+                animator.cancel()
+                animator.start()
+            }
+            return
+        }
+
         setVisible(
             visible = visible,
             startAnimation = {
@@ -52,7 +62,7 @@ class AnimationController(
         )
     }
 
-    fun setVisible(
+    private fun setVisible(
         visible: Boolean,
         startAnimation: () -> Unit,
         stopAnimation: () -> Unit

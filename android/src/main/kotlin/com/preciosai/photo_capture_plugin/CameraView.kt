@@ -172,6 +172,13 @@ class CameraView @JvmOverloads constructor(
         requestInvalidate = { invalidate() },
         post = { action -> post(action) }
     )
+    private var focusAnimation = AnimationController(
+        state = AnimationState(duration = 500L, limits = Pair(255f, 0f), repeatCount = 0),
+        requestInvalidate = { overlayView.invalidate() },
+        post = { action -> post(action) }
+    )
+    private var focusPoint: PointF? = null
+
     private val progressBarLottieAnimation = LottieAnimation(context, "assets/animation/progress_bar.json")
     private var reusableBitmap: Bitmap? = null
 
@@ -259,8 +266,26 @@ class CameraView @JvmOverloads constructor(
             }
         )
 
+        val gestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
+            override fun onDown(e: MotionEvent): Boolean = true
+
+            override fun onSingleTapUp(e: MotionEvent): Boolean {
+                val factory = previewView.meteringPointFactory
+                val point = factory.createPoint(e.x, e.y)
+                val action = FocusMeteringAction.Builder(point, FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE)
+                    .setAutoCancelDuration(3, TimeUnit.SECONDS)
+                    .build()
+
+                focusPoint = PointF(e.x, e.y)
+                focusAnimation.setAnimationVisible(true)
+                camera?.cameraControl?.startFocusAndMetering(action)
+                return true
+            }
+        })
+
         previewView.setOnTouchListener { _, event ->
             scaleGestureDetector.onTouchEvent(event)
+            gestureDetector.onTouchEvent(event)
             return@setOnTouchListener true
         }
 
@@ -847,7 +872,9 @@ class CameraView @JvmOverloads constructor(
                         showPulseRect = pulseRectAnimation.state.visible,
                         rectAlpha = pulseRectAnimation.state.animationOffset.toInt(),
                         showBackArrow = backArrowAnimation.state.visible,
-                        arrowAnimationOffset = backArrowAnimation.state.animationOffset
+                        arrowAnimationOffset = backArrowAnimation.state.animationOffset,
+                        focusPoint = focusPoint,
+                        focusAlpha = focusAnimation.state.animationOffset.toInt()
                     )
                     post {
                         overlayView.updateState(state)
@@ -959,7 +986,7 @@ class CameraView @JvmOverloads constructor(
                                 val poseComparisonResult = poseComparator.compare(refPredictionObj, currentPredictionObj, result.imageShape)
                                 compareRes = poseComparisonResult.overallScore
                                 poseComparisonDetails = poseComparisonResult.details
-                                // Log.d(TAG, "compareRes $compareRes, poseComparisonDetails $poseComparisonDetails")
+                                Log.d(TAG, "compareRes $compareRes, poseComparisonDetails $poseComparisonDetails")
 
                             } else {
                                 if (poseComparisonMode != "cosine") {
@@ -1027,7 +1054,9 @@ class CameraView @JvmOverloads constructor(
                     arrowAnimationOffset = backArrowAnimation.state.animationOffset,
                     poseComparisonDetails = poseComparisonDetails,
                     visualizationMode = visualizationMode,
-                    isPortrait = autoZoom.isPortrait
+                    isPortrait = autoZoom.isPortrait,
+                    focusPoint = focusPoint,
+                    focusAlpha = focusAnimation.state.animationOffset.toInt()
                 )
                 post {
                     overlayView.updateState(state)
@@ -1070,14 +1099,28 @@ class CameraView @JvmOverloads constructor(
         override fun onDraw(canvas: Canvas) {
             super.onDraw(canvas)
 
-            state?.let {
-                renderer.draw(
-                    canvas = canvas,
-                    width = width.toFloat(),
-                    height = height.toFloat(),
-                    state = it
-                )
-            }
+            val currentState = state ?: OverlayState(
+                result = null,
+                refDetectionResult = null,
+                isFrontCamera = lensFacing == CameraSelector.LENS_FACING_FRONT,
+                showPulseRect = false,
+                rectAlpha = 0,
+                showBackArrow = false,
+                captureRequested = false,
+                arrowAnimationOffset = 0f
+            )
+
+            val animatedState = currentState.copy(
+                focusPoint = focusPoint,
+                focusAlpha = focusAnimation.state.animationOffset.toInt()
+            )
+
+            renderer.draw(
+                canvas = canvas,
+                width = width.toFloat(),
+                height = height.toFloat(),
+                state = animatedState
+            )
         }
         override fun onTouchEvent(event: MotionEvent?): Boolean {
             // Pass through all touch events
