@@ -125,14 +125,16 @@ class PhotoCapturePlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCal
                             val w = bitmap.width
                             val h = bitmap.height
                             Log.d(TAG, "predictorInstance result ${predictorInstance}")
-                            platformView.cameraViewInstance.refDetectionResult =
-                                predictorInstance.predict(
-                                    bitmap,
-                                    w,
-                                    h,
-                                    rotateForCamera = false,
-                                    isLandscape = false
-                                )
+                            for (i in 0..2) {
+                                platformView.cameraViewInstance.refDetectionResult =
+                                    predictorInstance.predict(
+                                        bitmap,
+                                        w,
+                                        h,
+                                        rotateForCamera = false,
+                                        isLandscape = false
+                                    )
+                            }
                             if (platformView.cameraViewInstance.refDetectionResult!!.objects.size == 0) {
                                 // TODO сделать сообщение, что модель не распознается на картинке и нужно взять другую
                                 saveBitmapToFile(applicationContext, bitmap, "ref_frame_predict_${System.currentTimeMillis()}")

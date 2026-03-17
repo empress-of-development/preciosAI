@@ -22,6 +22,8 @@ dependencies:
   permission_handler: ^12.0.1
   flutter_native_splash: ^2.4.0
   cupertino_icons: ^1.0.8
+  showcaseview: ^5.0.1
+  lottie: ^3.3.0
   preciosai:
     path: ../
 
@@ -47,6 +49,7 @@ flutter:
     - assets/audio/
     - assets/animation/
     - assets/onboarding/
+    - assets/onboarding/animation/
     - assets/onboarding/screen_1/
     - assets/onboarding/screen_2/
     - assets/onboarding/screen_3/

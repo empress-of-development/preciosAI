@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:showcaseview/showcaseview.dart';
 import 'package:uuid/uuid.dart';
 
 import 'additional_albums.dart';
@@ -22,6 +24,19 @@ Future<Map<String, dynamic>> _getAssetManifest() async {
   final jsonStr = await rootBundle.loadString('AssetManifest.json');
   _cachedAssetManifest = json.decode(jsonStr);
   return _cachedAssetManifest!;
+}
+
+Future<void> _checkAndShowDoneShowcase(
+  BuildContext context,
+  GlobalKey key,
+) async {
+  final prefs = await SharedPreferences.getInstance();
+  final isFirstRun = prefs.getBool('isFirstRun_doneButton') ?? true;
+
+  if (isFirstRun && context.mounted) {
+    await prefs.setBool('isFirstRun_doneButton', false);
+    ShowcaseView.get().startShowCase([key]);
+  }
 }
 
 class AlbumImageRef {
@@ -116,10 +131,26 @@ final List<Album> albumsDefault = [
   ),
 ];
 
-class SelectedPhotoScreen extends StatelessWidget {
+class SelectedPhotoScreen extends StatefulWidget {
   final File imageFile;
 
   const SelectedPhotoScreen({super.key, required this.imageFile});
+
+  @override
+  State<SelectedPhotoScreen> createState() => _SelectedPhotoScreenState();
+}
+
+class _SelectedPhotoScreenState extends State<SelectedPhotoScreen> {
+  final GlobalKey _doneKey = GlobalKey();
+
+  @override
+  void initState() {
+    super.initState();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkAndShowDoneShowcase(context, _doneKey);
+    });
+  }
 
   void _continue(BuildContext context, String imagePath) {
     Navigator.push(
@@ -153,7 +184,7 @@ class SelectedPhotoScreen extends StatelessWidget {
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(18),
                     child: InteractiveViewer(
-                      child: Image.file(imageFile, fit: BoxFit.cover),
+                      child: Image.file(widget.imageFile, fit: BoxFit.cover),
                     ),
                   ),
                 ),
@@ -167,9 +198,18 @@ class SelectedPhotoScreen extends StatelessWidget {
               children: [
                 Padding(
                   padding: const EdgeInsets.only(bottom: 32),
-                  child: RippleCircleButton(
-                    iconPath: 'assets/icons/done.png',
-                    onTap: () => _continue(context, imageFile.path),
+                  child: Showcase(
+                    key: _doneKey,
+                    description: 'Tap here to proceed with the selected photo',
+                    descTextStyle: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    targetShapeBorder: const CircleBorder(),
+                    child: RippleCircleButton(
+                      iconPath: 'assets/icons/done.png',
+                      onTap: () => _continue(context, widget.imageFile.path),
+                    ),
                   ),
                 ),
               ],
@@ -192,6 +232,14 @@ class _AlbumScreenState extends State<AlbumScreen> {
   File? pickedImage;
   late final List<Album> builtInAlbums;
   final List<Album> albums = [];
+  final Set<int> protectedIndexes = {0, 1, 2};
+
+  // Keys for the showcase steps
+  final GlobalKey _stepOne = GlobalKey();
+  final GlobalKey _stepTwo = GlobalKey();
+  final GlobalKey _stepThree = GlobalKey();
+  final GlobalKey _stepFour = GlobalKey();
+  final GlobalKey _stepFive = GlobalKey();
 
   @override
   void initState() {
@@ -199,6 +247,40 @@ class _AlbumScreenState extends State<AlbumScreen> {
     builtInAlbums = List<Album>.from(albumsDefault);
     albums.addAll(builtInAlbums);
     _loadUserAlbums();
+
+    // Trigger showcase on first run after layout builds
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkFirstRun();
+    });
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
+  }
+
+  Future<void> _checkFirstRun() async {
+    final prefs = await SharedPreferences.getInstance();
+    final isFirstRun = prefs.getBool('isFirstRun_albumScreen') ?? true;
+
+    if (isFirstRun && mounted) {
+      _startShowcase();
+      await prefs.setBool('isFirstRun_albumScreen', false);
+    }
+  }
+
+  void _startShowcase() async {
+    ShowcaseView.get().startShowCase([
+      _stepOne,
+      _stepTwo,
+      _stepThree,
+      _stepFour,
+      _stepFive,
+    ]);
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('isFirstRun_doneButton', true);
+    await prefs.setBool('isFirstRun_cameraPage', true);
   }
 
   Future<void> _loadUserAlbums() async {
@@ -257,8 +339,6 @@ class _AlbumScreenState extends State<AlbumScreen> {
     }
   }
 
-  final Set<int> protectedIndexes = {0, 1, 2};
-
   Future<void> _tryDeleteAlbum(int index) async {
     if (protectedIndexes.contains(index) || index == albums.length) {
       return;
@@ -303,6 +383,48 @@ class _AlbumScreenState extends State<AlbumScreen> {
           children: [
             const NeuralNetworkWithBlurredCircles(),
 
+            Align(
+              alignment: const Alignment(0.0, -0.3),
+              child: Showcase.withWidget(
+                key: _stepOne,
+                targetShapeBorder: const CircleBorder(),
+                targetPadding: EdgeInsets.zero,
+                container: SizedBox(
+                  width: MediaQuery.of(context).size.width * 0.8,
+                  child: const Text(
+                    'Welcome to PreciosAI',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 30,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                child: Showcase.withWidget(
+                  key: _stepTwo,
+                  targetShapeBorder: const CircleBorder(),
+                  targetPadding: EdgeInsets.zero,
+                  container: SizedBox(
+                    width: MediaQuery.of(context).size.width * 0.8,
+                    child: const Text(
+                      'First, you need to choose a photo\nwith preferred pose and angle',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  child: const SizedBox(
+                    width: 1,
+                    height: 1,
+                  ), // Invisible anchor
+                ),
+              ),
+            ),
+
             ClipRRect(
               borderRadius: const BorderRadius.only(
                 bottomLeft: Radius.circular(24),
@@ -313,20 +435,33 @@ class _AlbumScreenState extends State<AlbumScreen> {
                 height:
                     kToolbarHeight * 1.3 + MediaQuery.of(context).padding.top,
                 child: SafeArea(
-                  child: Padding(
-                    padding: const EdgeInsets.only(
-                      top: kToolbarHeight * 1.3 / 4,
-                    ),
-                    child: Center(
-                      child: Text(
-                        "Let's choose a reference photo",
-                        style: TextStyle(
-                          color: Colors.grey.shade900,
-                          fontSize: 26,
-                          fontWeight: FontWeight.bold,
+                  child: Stack(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.only(top: kToolbarHeight / 3),
+                        child: Center(
+                          child: Text(
+                            "Let's choose a reference photo",
+                            style: TextStyle(
+                              color: Colors.grey.shade900,
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                         ),
                       ),
-                    ),
+                      Positioned(
+                        right: 5,
+                        child: IconButton(
+                          icon: Icon(
+                            Icons.help_outline,
+                            color: Colors.purple.shade900,
+                            size: 40,
+                          ),
+                          onPressed: _startShowcase,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -371,12 +506,11 @@ class _AlbumScreenState extends State<AlbumScreen> {
                         final album = albums[index];
                         final canDelete = !protectedIndexes.contains(index);
 
-                        return Stack(
+                        final Widget albumCardWidget = Stack(
                           children: [
                             AlbumCard(
                               album: album,
                               onLongPress: () => _tryDeleteAlbum(index),
-
                               onTap: () async {
                                 final updated = await Navigator.push<Album?>(
                                   context,
@@ -411,14 +545,12 @@ class _AlbumScreenState extends State<AlbumScreen> {
                                   );
                                   if (i != -1) {
                                     setState(() => albums[i] = updated);
-
                                     if (canDelete)
                                       await AlbumStorage.updateAlbum(updated);
                                   }
                                 }
                               },
                             ),
-
                             if (canDelete)
                               Positioned(
                                 top: 8,
@@ -441,6 +573,23 @@ class _AlbumScreenState extends State<AlbumScreen> {
                               ),
                           ],
                         );
+
+                        if (index == 0) {
+                          return Showcase(
+                            key: _stepThree,
+                            description: 'You can select from prepared albums',
+                            descTextStyle: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w500,
+                            ),
+                            targetShapeBorder: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(50),
+                            ),
+                            child: albumCardWidget,
+                          );
+                        }
+
+                        return albumCardWidget;
                       },
                     ),
                   ),
@@ -450,16 +599,34 @@ class _AlbumScreenState extends State<AlbumScreen> {
                   children: [
                     Padding(
                       padding: const EdgeInsets.only(bottom: 32),
-                      child: RippleCircleButton(
-                        iconPath: 'assets/icons/add_photo.png',
-                        onTap: pickFromGallery,
+                      child: Showcase(
+                        key: _stepFour,
+                        description: 'upload from your gallery',
+                        descTextStyle: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        targetShapeBorder: const CircleBorder(),
+                        child: RippleCircleButton(
+                          iconPath: 'assets/icons/add_photo.png',
+                          onTap: pickFromGallery,
+                        ),
                       ),
                     ),
                     Padding(
-                      padding: const EdgeInsets.only(bottom: 32),
-                      child: RippleCircleButton(
-                        iconPath: 'assets/icons/random_2.png',
-                        onTap: pickRandomfromAssets,
+                      padding: const EdgeInsets.only(bottom: 32, left: 16),
+                      child: Showcase(
+                        key: _stepFive,
+                        description: 'or use random choice',
+                        descTextStyle: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        targetShapeBorder: const CircleBorder(),
+                        child: RippleCircleButton(
+                          iconPath: 'assets/icons/random_2.png',
+                          onTap: pickRandomfromAssets,
+                        ),
                       ),
                     ),
                   ],
@@ -565,10 +732,13 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
   List<AlbumImageRef> _images = [];
   bool _isLoading = true;
 
+  final GlobalKey _doneKey = GlobalKey();
+
   @override
   void initState() {
     super.initState();
     // If we already have the paths, show them immediately to prevent "twitching"
+
     if (widget.album.imagesPathList != null &&
         widget.album.imagesPathList!.isNotEmpty) {
       _images = widget.album.imagesPathList!;
@@ -581,6 +751,10 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
     setState(() {
       selectedImage = path;
       pickedImage = null;
+    });
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkAndShowDoneShowcase(context, _doneKey);
     });
   }
 
@@ -680,9 +854,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
                   crossAxisCount: 2,
                   mainAxisSpacing: 12,
                   crossAxisSpacing: 12,
-                  addAutomaticKeepAlives: true,
                   itemCount: images.length,
-
                   itemBuilder: (_, index) {
                     final img = images[index];
                     final isSelected = selectedImage == img;
@@ -723,7 +895,6 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
                                     ),
                             ),
                           ),
-
                           if (isSelected)
                             Positioned.fill(
                               child: Container(
@@ -755,9 +926,18 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
                 if (selectedImage != null || pickedImage != null)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 32),
-                    child: RippleCircleButton(
-                      iconPath: 'assets/icons/done.png',
-                      onTap: _continue,
+                    child: Showcase(
+                      key: _doneKey,
+                      description: 'Tap here to proceed with the selected photo',
+                      descTextStyle: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      targetShapeBorder: const CircleBorder(),
+                      child: RippleCircleButton(
+                        iconPath: 'assets/icons/done.png',
+                        onTap: _continue,
+                      ),
                     ),
                   ),
               ],
@@ -769,11 +949,27 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
   }
 }
 
-class PhotoHeroScreen extends StatelessWidget {
+class PhotoHeroScreen extends StatefulWidget {
   final AlbumImageRef image;
   final String tag;
 
   const PhotoHeroScreen({super.key, required this.image, required this.tag});
+
+  @override
+  State<PhotoHeroScreen> createState() => _PhotoHeroScreenState();
+}
+
+class _PhotoHeroScreenState extends State<PhotoHeroScreen> {
+  final GlobalKey _doneKey = GlobalKey();
+
+  @override
+  void initState() {
+    super.initState();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkAndShowDoneShowcase(context, _doneKey);
+    });
+  }
 
   void _continue(BuildContext context, String imagePath) {
     Navigator.push(
@@ -792,7 +988,7 @@ class PhotoHeroScreen extends StatelessWidget {
           children: [
             Center(
               child: Hero(
-                tag: tag,
+                tag: widget.tag,
                 child: Material(
                   color: Colors.transparent,
                   child: Container(
@@ -808,9 +1004,9 @@ class PhotoHeroScreen extends StatelessWidget {
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(18),
                       child: InteractiveViewer(
-                        child: image.source == AlbumImageSource.asset
-                            ? Image.asset(image.value, fit: BoxFit.cover)
-                            : Image.file(File(image.value), fit: BoxFit.cover),
+                        child: widget.image.source == AlbumImageSource.asset
+                            ? Image.asset(widget.image.value, fit: BoxFit.cover)
+                            : Image.file(File(widget.image.value), fit: BoxFit.cover),
                       ),
                     ),
                   ),
@@ -824,9 +1020,18 @@ class PhotoHeroScreen extends StatelessWidget {
                 children: [
                   Padding(
                     padding: const EdgeInsets.only(bottom: 32),
-                    child: RippleCircleButton(
-                      iconPath: 'assets/icons/done.png',
-                      onTap: () => _continue(context, image.value),
+                    child: Showcase(
+                      key: _doneKey,
+                      description: 'Tap here to proceed with the selected photo',
+                      descTextStyle: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      targetShapeBorder: const CircleBorder(),
+                      child: RippleCircleButton(
+                        iconPath: 'assets/icons/done.png',
+                        onTap: () => _continue(context, widget.image.value),
+                      ),
                     ),
                   ),
                 ],

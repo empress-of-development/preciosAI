@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:preciosai/splash_screen.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:showcaseview/showcaseview.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // Это заставляет приложение отрисовываться под системными панелями
   await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  ShowcaseView.register();
 
   runApp(const PreciosAIDemo());
 }

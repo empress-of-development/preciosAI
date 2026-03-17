@@ -67,7 +67,7 @@ class _RippleCircleButtonState extends State<RippleCircleButton>
                 shape: BoxShape.circle,
                 color: Colors.white.withOpacity(0.5),
                 border: Border.all(
-                  color: Colors.white.withOpacity(0.8),
+                  color: Colors.indigo.withOpacity(0.8),
                   width: 2,
                 ),
               ),
