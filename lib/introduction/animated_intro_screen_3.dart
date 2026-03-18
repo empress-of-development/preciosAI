@@ -242,12 +242,12 @@ class _AnimatedIntroScreen3State extends State<AnimatedIntroScreen3>
                       opacity: _descOpacity,
                       child: const Text(
                         'Our smart overlay detects your subject’s pose.\n'
-                        'Follow the on-screen hints to adjust your pose and angle — \n'
+                        'Follow the on-screen hints to adjust your pose and angle — '
                         'the photo is captured automatically once everything aligns perfectly.',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           color: Color(0xFFEAC7FF),
-                          fontSize: 18,
+                          fontSize: 16,
                           height: 1.4,
                           fontWeight: FontWeight.w500,
                         ),

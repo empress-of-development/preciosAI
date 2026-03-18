@@ -221,13 +221,13 @@ class _AnimatedIntroScreen4State extends State<AnimatedIntroScreen4>
                       opacity: _descOpacity,
                       child: Text(
                         'We believe in complete privacy.\n'
-                        'All pose processing happens directly on your device — \n '
+                        'All pose processing happens directly on your device, '
                         'no data is ever collected or sent to the cloud.\n'
                         'It even works perfectly offline.',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           color: Colors.white.withOpacity(0.82),
-                          fontSize: 18,
+                          fontSize: 16,
                           height: 1.32,
                           fontWeight: FontWeight.w500,
                         ),

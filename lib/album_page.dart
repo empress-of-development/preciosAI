@@ -408,7 +408,7 @@ class _AlbumScreenState extends State<AlbumScreen> {
                   container: SizedBox(
                     width: MediaQuery.of(context).size.width * 0.8,
                     child: const Text(
-                      'First, you need to choose a photo\nwith preferred pose and angle',
+                      'First, you need to choose a photo with preferred pose and angle',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         color: Colors.white,

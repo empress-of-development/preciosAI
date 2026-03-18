@@ -309,8 +309,8 @@ class _CameraPageState extends State<CameraPage> {
 
                       const Text(
                         'You will see schematic skeleton of the reference photo '
-                            'and a second skeleton that matches your model.\n'
-                            ' Place the model in the highlighted sector and merge the skeletons',
+                            'and a skeleton that matches your model.\n'
+                            ' Place the model in the highlighted sector and merge the skeletons.',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           color: Colors.white,
@@ -352,12 +352,12 @@ class _CameraPageState extends State<CameraPage> {
                         SizedBox(height: MediaQuery.of(context).size.height * 0.1),
 
                         const Text(
-                          'To get the perfect shot you can use auxiliary color sectors, '
-                              'each of them must be green.',
+                          'Auxiliary sectors display the correspondence of body parts to the desired pose. '
+                              'For a perfect shot, each of them should be green.',
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             color: Colors.white,
-                            fontSize: 20,
+                            fontSize: 18,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -369,12 +369,12 @@ class _CameraPageState extends State<CameraPage> {
                         ),
                         const SizedBox(height: 24),
                         const Text(
-                          'The zoom will be adjusted automatically, but you can adjust it yourself if necessary. '
-                              'Currently, only one person can be photographed',
+                          'The zoom will be adjusted automatically, but you can change it yourself if necessary. '
+                              'Currently, only one person can be photographed.',
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             color: Colors.white,
-                            fontSize: 20,
+                            fontSize: 18,
                             fontWeight: FontWeight.bold,
                           ),
                         ),

@@ -267,7 +267,7 @@ class _AnimatedIntroScreen1State extends State<AnimatedIntroScreen1>
                           ),
                         ),
                       ),
-                      const SizedBox(height: 14),
+                      // const SizedBox(height: 14),
                       _Stagger(
                         controller: _c,
                         from: 0.62,
