@@ -1,15 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:preciosai/logger.dart';
+import 'package:showcaseview/showcaseview.dart';
 
 class PoseSimilaritySliderButton extends StatefulWidget {
-  const PoseSimilaritySliderButton({Key? key}) : super(key: key);
+  final GlobalKey? showcaseKey;
+  final VoidCallback? onShowcaseTap;
+
+  const PoseSimilaritySliderButton({
+    Key? key,
+    this.showcaseKey,
+    this.onShowcaseTap,
+  }) : super(key: key);
 
   @override
-  State<PoseSimilaritySliderButton> createState() => _PoseSimilaritySliderButtonState();
+  State<PoseSimilaritySliderButton> createState() =>
+      _PoseSimilaritySliderButtonState();
 }
 
-class _PoseSimilaritySliderButtonState extends State<PoseSimilaritySliderButton> {
+class _PoseSimilaritySliderButtonState
+    extends State<PoseSimilaritySliderButton> {
   bool _isSliderVisible = false;
   double _sliderValue = 70.0;
   static const methodChannel = MethodChannel('photo_capture_channel_default');
@@ -26,6 +36,21 @@ class _PoseSimilaritySliderButtonState extends State<PoseSimilaritySliderButton>
     }
   }
 
+  Widget _buildShowcaseWrapper({
+    required String description,
+    required Widget child,
+  }) {
+    if (widget.showcaseKey == null) return child;
+    return Showcase(
+      key: widget.showcaseKey!,
+      description: description,
+      disposeOnTap: true,
+      onTargetClick: widget.onShowcaseTap ?? () {},
+      onToolTipClick: widget.onShowcaseTap ?? () {},
+      child: child,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Stack(
@@ -38,50 +63,54 @@ class _PoseSimilaritySliderButtonState extends State<PoseSimilaritySliderButton>
               child: Container(color: Colors.transparent),
             ),
           ),
-        // Кнопка в правом верхнем углу
+
         Positioned(
           top: 70,
           right: 16,
-          child: GestureDetector(
-            onTap: () {
-              setState(() {
-                _isSliderVisible = !_isSliderVisible;
-              });
-            },
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              decoration: BoxDecoration(
-                color: Colors.indigo.withOpacity(0.7),
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.2),
-                    // Легкая тень для объема
-                    blurRadius: 6,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
-              ),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.tune, color: Colors.white, size: 18),
-                  SizedBox(width: 8),
-                  Text(
-                    "Degree of similarity",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
+          child: _buildShowcaseWrapper(
+            description: 'and the degree of similarity',
+            child: GestureDetector(
+              onTap: () {
+                setState(() {
+                  _isSliderVisible = !_isSliderVisible;
+                });
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.indigo.withOpacity(0.7),
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.2),
+                      blurRadius: 6,
+                      offset: const Offset(0, 3),
                     ),
-                  ),
-                ],
+                  ],
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.tune, color: Colors.white, size: 18),
+                    SizedBox(width: 8),
+                    Text(
+                      'Degree of similarity',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
         ),
-
         // Ползунок
         Positioned(
           top: 125,
@@ -89,7 +118,6 @@ class _PoseSimilaritySliderButtonState extends State<PoseSimilaritySliderButton>
           child: AnimatedOpacity(
             opacity: _isSliderVisible ? 1.0 : 0.0,
             duration: const Duration(milliseconds: 250),
-            // Игнорируем нажатия, когда ползунок скрыт
             child: IgnorePointer(
               ignoring: !_isSliderVisible,
               child: Container(
@@ -166,26 +194,31 @@ class _PoseSimilaritySliderButtonState extends State<PoseSimilaritySliderButton>
   }
 }
 
-
 class VisualizationSettingsButton extends StatefulWidget {
-  const VisualizationSettingsButton({Key? key}) : super(key: key);
+  final GlobalKey? showcaseKey;
+  final VoidCallback? onShowcaseTap;
+
+  const VisualizationSettingsButton({
+    Key? key,
+    this.showcaseKey,
+    this.onShowcaseTap,
+  }) : super(key: key);
 
   @override
-  State<VisualizationSettingsButton> createState() => _VisualizationSettingsButtonState();
+  State<VisualizationSettingsButton> createState() =>
+      _VisualizationSettingsButtonState();
 }
 
-class _VisualizationSettingsButtonState extends State<VisualizationSettingsButton> {
+class _VisualizationSettingsButtonState
+    extends State<VisualizationSettingsButton> {
   bool _isPanelVisible = false;
-
-  String _selectedOption = "Skeleton+Capsules";
-
+  String _selectedOption = 'Skeleton+Capsules';
   final List<String> _options = [
-    "Empty",
-    "Skeleton",
-    "Capsules",
-    "Skeleton+Capsules"
+    'Empty',
+    'Skeleton',
+    'Capsules',
+    'Skeleton+Capsules',
   ];
-
   static const methodChannel = MethodChannel('photo_capture_channel_default');
 
   Future<void> _sendVisualizationSettingsToKotlin(String value) async {
@@ -200,6 +233,21 @@ class _VisualizationSettingsButtonState extends State<VisualizationSettingsButto
     }
   }
 
+  Widget _buildShowcaseWrapper({
+    required String description,
+    required Widget child,
+  }) {
+    if (widget.showcaseKey == null) return child;
+    return Showcase(
+      key: widget.showcaseKey!,
+      description: description,
+      disposeOnTap: true,
+      onTargetClick: widget.onShowcaseTap ?? () {},
+      onToolTipClick: widget.onShowcaseTap ?? () {},
+      child: child,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Stack(
@@ -212,48 +260,54 @@ class _VisualizationSettingsButtonState extends State<VisualizationSettingsButto
               child: Container(color: Colors.transparent),
             ),
           ),
+
         Positioned(
           top: 70,
           left: 16,
-          child: GestureDetector(
-            onTap: () {
-              setState(() {
-                _isPanelVisible = !_isPanelVisible;
-              });
-            },
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              decoration: BoxDecoration(
-                color: Colors.indigo.withOpacity(0.7),
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.2),
-                    blurRadius: 6,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
-              ),
-              child: const Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.brush, color: Colors.white, size: 18),
-                  SizedBox(width: 8),
-                  Text(
-                    "Visualization",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
+          child: _buildShowcaseWrapper(
+            description: 'Here you can configure the visualization settings',
+            child: GestureDetector(
+              onTap: () {
+                setState(() {
+                  _isPanelVisible = !_isPanelVisible;
+                });
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.indigo.withOpacity(0.7),
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.2),
+                      blurRadius: 6,
+                      offset: const Offset(0, 3),
                     ),
-                  ),
-                ],
+                  ],
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.brush, color: Colors.white, size: 18),
+                    SizedBox(width: 8),
+                    Text(
+                      "Visualization",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
         ),
-
         // Выпадающая панель с выбором опций
         Positioned(
           top: 125,
@@ -280,7 +334,9 @@ class _VisualizationSettingsButtonState extends State<VisualizationSettingsButto
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
-                  children: _options.map((option) => _buildOptionItem(option)).toList(),
+                  children: _options
+                      .map((option) => _buildOptionItem(option))
+                      .toList(),
                 ),
               ),
             ),
@@ -297,7 +353,7 @@ class _VisualizationSettingsButtonState extends State<VisualizationSettingsButto
       onTap: () {
         setState(() {
           _selectedOption = title;
-          _isPanelVisible = false; // Автоматически скрываем панель после выбора
+          _isPanelVisible = false;
         });
 
         _sendVisualizationSettingsToKotlin(title);

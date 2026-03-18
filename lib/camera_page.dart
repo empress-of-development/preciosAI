@@ -9,6 +9,9 @@ import 'package:preciosai/camera_page_settings.dart';
 import 'package:preciosai/logger.dart';
 import 'package:preciosai/recognition_view.dart';
 import 'package:preciosai/small_reference_photo.dart';
+import 'package:showcaseview/showcaseview.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:lottie/lottie.dart';
 
 class CameraPage extends StatefulWidget {
   final String refImagePath;
@@ -39,10 +42,17 @@ class _CameraPageState extends State<CameraPage> {
   static bool modelLoaded = false;
   final Completer<void> _modelReadyCompleter = Completer<void>();
 
+  // Showcase Keys
+  final GlobalKey _stepOne = GlobalKey();
+  final GlobalKey _stepTwo = GlobalKey();
+  final GlobalKey _stepThree = GlobalKey();
+  final GlobalKey _stepFour = GlobalKey();
+
   // Текстовые подсказки делаются только для первого кадра в рамках запуска приложения
   static bool _isFirstVisit = true;
   bool showStatusMessage = false;
   String statusText = '';
+  bool _onboardingChecked = false;
 
   Future<void> init() async {
     if (!mounted) return;
@@ -89,6 +99,44 @@ class _CameraPageState extends State<CameraPage> {
     refPredictionsJsonMap = jsonDecode(jsonString);
   }
 
+  Future<bool> _checkFirstRunShowcase() async {
+    final prefs = await SharedPreferences.getInstance();
+    final isFirstRun = prefs.getBool('isFirstRun_cameraPage') ?? true;
+
+    if (isFirstRun && mounted) {
+      await prefs.setBool('isFirstRun_cameraPage', false);
+      ShowcaseView.get().startShowCase([
+        _stepOne,
+        _stepTwo,
+        _stepThree,
+        _stepFour,
+      ]);
+      return true;
+    }
+    return false;
+  }
+
+  Future<void> _startOnboardingFlow() async {
+    final prefs = await SharedPreferences.getInstance();
+    final isFirstRun = prefs.getBool('isFirstRun_cameraPage') ?? true;
+
+    if (isFirstRun && mounted) {
+      await prefs.setBool('isFirstRun_cameraPage', false);
+
+      ShowcaseView.get().startShowCase([
+        _stepOne,
+        _stepTwo,
+        _stepThree,
+        _stepFour,
+      ]);
+    } else {
+      if (_isFirstVisit && mounted) {
+        showHintsSequence();
+        _isFirstVisit = false;
+      }
+    }
+  }
+
   Future<void> sendImageToNative(
       Uint8List bytes,
       String? assetPredictions,
@@ -98,9 +146,9 @@ class _CameraPageState extends State<CameraPage> {
       await _modelReadyCompleter.future;
     }
 
-    if (_isFirstVisit) {
-      showHintsSequence();
-      _isFirstVisit = false;
+    if (!_onboardingChecked) {
+      _onboardingChecked = true;
+      _startOnboardingFlow();
     }
 
     try {
@@ -141,15 +189,15 @@ class _CameraPageState extends State<CameraPage> {
 
   Future<void> showHintsSequence() async {
     final List<String> messages = [
-      'Now you see schematic skeleton of the reference photo',
-      'And a second skeleton that matches your model',
-      "If you don't see it, move the camera a little",
-      'Place the model in the highlighted sector',
-      'Then you need to merge the skeletons using auxiliary color sectors.',
-      'For the perfect photo each of them must be green',
+      //'Now you see schematic skeleton of the reference photo',
+      //'And a second skeleton that matches your model',
+      "If you don't see skeleton that matches your model, move the camera a little",
+      'Place the model in the highlighted sector and merge the skeletons',
+      //'Then you need to merge the skeletons using auxiliary color sectors.',
+      //'For the perfect photo each of them must be green',
       'Move the camera slowly and give your model cues',
-      'The zoom will be adjusted automatically, but you can adjust it yourself if necessary',
-      'Currently, only one person can be photographed'
+      //'The zoom will be adjusted automatically, but you can adjust it yourself if necessary',
+      //'Currently, only one person can be photographed'
     ];
 
     for (String msg in messages) {
@@ -239,6 +287,104 @@ class _CameraPageState extends State<CameraPage> {
                 },
               ),
             ),
+          ),
+
+          Showcase.withWidget(
+            key: _stepOne,
+            overlayOpacity: 0.85,
+            targetShapeBorder: const CircleBorder(),
+            targetPadding: EdgeInsets.zero,
+            container: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () {
+                ShowcaseView.get().completed(_stepOne);
+              },
+              child: Align(
+                alignment: Alignment.center,
+                child: SizedBox(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(height: MediaQuery.of(context).size.height * 0.1),
+
+                      const Text(
+                        'You will see schematic skeleton of the reference photo '
+                            'and a second skeleton that matches your model.\n'
+                            ' Place the model in the highlighted sector and merge the skeletons',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      Lottie.asset(
+                        'assets/onboarding/animation/pose_matching.json',
+                        height: MediaQuery.of(context).size.height * 0.5,
+                        fit: BoxFit.contain,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+            child: const SizedBox(width: 10, height: 10),
+          ),
+
+          Showcase.withWidget(
+              key: _stepTwo,
+              overlayOpacity: 0.85,
+              targetShapeBorder: const CircleBorder(),
+              targetPadding: EdgeInsets.zero,
+              container: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () {
+                  ShowcaseView.get().completed(_stepTwo);
+                },
+                child: Align(
+                  alignment: Alignment.center,
+                  child: SizedBox(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(height: MediaQuery.of(context).size.height * 0.1),
+
+                        const Text(
+                          'To get the perfect shot you can use auxiliary color sectors, '
+                              'each of them must be green.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        Lottie.asset(
+                          'assets/onboarding/animation/pose_zones.json',
+                          height: MediaQuery.of(context).size.height * 0.5,
+                          fit: BoxFit.contain,
+                        ),
+                        const SizedBox(height: 24),
+                        const Text(
+                          'The zoom will be adjusted automatically, but you can adjust it yourself if necessary. '
+                              'Currently, only one person can be photographed',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
+            child: const SizedBox(width: 10, height: 10),
           ),
 
           // Overlay для закрытия по тапу вне окна
@@ -415,10 +561,22 @@ class _CameraPageState extends State<CameraPage> {
               ),
             ),
           ),
-          // Кнопка слайдера для регулирования желаемой степени похожести позы
-          const Positioned.fill(child: PoseSimilaritySliderButton()),
+
           // Кнопка визуализации
-          const Positioned.fill(child: VisualizationSettingsButton()),
+          VisualizationSettingsButton(
+            showcaseKey: _stepThree,
+          ),
+
+          // Кнопка слайдера для регулирования желаемой степени похожести позы
+          PoseSimilaritySliderButton(
+            showcaseKey: _stepFour,
+            onShowcaseTap: () {
+              if (_isFirstVisit && mounted) {
+                showHintsSequence();
+                _isFirstVisit = false;
+              }
+            },
+          ),
 
           if (!modelLoaded)
             Positioned(
