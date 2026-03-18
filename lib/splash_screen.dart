@@ -34,23 +34,28 @@ class _SplashScreenState extends State<SplashScreenVideo> {
   }
 
   Future<void> _initVideo() async {
-    await _controller.initialize();
-    if (!mounted) return;
+    try {
+      await _controller.initialize().timeout(const Duration(seconds: 3));
 
-    _controller.play();
+      if (!mounted) return;
 
-    // fade-out
-    _fadeTimer = Timer(const Duration(seconds: 8), () {
-      if (!mounted || _isFinished) return;
-      setState(() => _opacity = 0);
-    });
+      _controller.play();
 
-    _continueTimer = Timer(const Duration(milliseconds: 8500), () {
-      if (!mounted || _isFinished) return;
+      _fadeTimer = Timer(const Duration(seconds: 8), () {
+        if (!mounted || _isFinished) return;
+        setState(() => _opacity = 0);
+      });
+
+      _continueTimer = Timer(const Duration(milliseconds: 8500), () {
+        if (!mounted || _isFinished) return;
+        _finishAndGoNext();
+      });
+
+      setState(() {});
+    } catch (e) {
+      debugPrint('Video init error or timeout: $e');
       _finishAndGoNext();
-    });
-
-    setState(() {});
+    }
   }
 
   void _skip() {
