@@ -283,10 +283,14 @@ class CameraView @JvmOverloads constructor(
             }
         })
 
-        previewView.setOnTouchListener { _, event ->
-            scaleGestureDetector.onTouchEvent(event)
-            gestureDetector.onTouchEvent(event)
-            return@setOnTouchListener true
+        overlayView.apply {
+            isClickable = true
+            isFocusable = true
+            setOnTouchListener { _, event ->
+                scaleGestureDetector.onTouchEvent(event)
+                gestureDetector.onTouchEvent(event)
+                true
+            }
         }
 
         val offsetDp = 200
@@ -483,6 +487,7 @@ class CameraView @JvmOverloads constructor(
                 }
             }
 
+            zoomState.currentZoomRatio = 1f
             camera?.cameraControl?.setZoomRatio(zoomState.currentZoomRatio)
             camera?.let { cam ->
                 val zs = cam.cameraInfo.zoomState.value
@@ -886,12 +891,14 @@ class CameraView @JvmOverloads constructor(
                 val currentPredictionObj = result.objects[0]
                 var poseComparisonDetails: Map<String, Float?>? = if (poseComparator.previousResult != null) poseComparator.previousResult!!.details else null
 
-                Log.d(TAG, "rotationUpdated $rotationUpdated")
+                // Log.d(TAG, "rotationUpdated $rotationUpdated")
                 if (autoZoom.refZoomData == null || rotationUpdated) {
                     // по референсному кадру расчитываем параметры для автозума только один раз
                     // TODO берется первый объект
                     autoZoom.getRefZoomData(refPredictionObj)
                 }
+                // Log.d(TAG, "result xyn: ${currentPredictionObj.keypoints.xyn}")
+                // Log.d(TAG, "result scores: ${currentPredictionObj.keypoints.scores}")
 
                 if (refDetectionResult != null && autoZoom.refZoomData != null && currentPredictionObj.keypoints != null) {
                     // if (autoZoom.zoomDurationCount < autoZoom.zoomDurationThreshold) {
@@ -1086,9 +1093,9 @@ class CameraView @JvmOverloads constructor(
 
             setWillNotDraw(false)
 
-            // Make overlay not intercept touch events
-            isClickable = false
-            isFocusable = false
+            // Make overlay intercept touch events
+            isClickable = true
+            isFocusable = true
         }
 
         fun updateState(state: OverlayState) {
@@ -1121,10 +1128,6 @@ class CameraView @JvmOverloads constructor(
                 height = height.toFloat(),
                 state = animatedState
             )
-        }
-        override fun onTouchEvent(event: MotionEvent?): Boolean {
-            // Pass through all touch events
-            return false
         }
     }
 
