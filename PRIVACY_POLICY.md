@@ -29,8 +29,12 @@ We use local storage (via Shared Preferences) to store your app settings, such a
 ## 2. Device Permissions
 To provide its core features, the Application explicitly requests the following permissions:
 * **CAMERA**: To capture images for real-time AI processing.
-* **READ_MEDIA_IMAGES / READ_EXTERNAL_STORAGE**: To access and select images from your gallery.
-* **WRITE_EXTERNAL_STORAGE**: To save processed photos to your device.
+* **READ_EXTERNAL_STORAGE**: To access and select images from your
+  gallery on Android 12 and below. On Android 13 and above, the app
+  uses the system photo picker, which does not require this permission.
+* **WRITE_EXTERNAL_STORAGE**: To save processed photos to your device
+  on Android 9 and below. On Android 10 and above, no storage permission
+  is required to save photos.
 
 We do not request access to your location, contacts, microphone, or any other sensitive device data.
 
