@@ -81,18 +81,20 @@ class _ResultPageState extends State<ResultPage> {
         children: [
           const NeuralNetworkWithBlurredCircles(),
 
-          ClipRRect(
-            borderRadius: const BorderRadius.only(
-              bottomLeft: Radius.circular(24),
-              bottomRight: Radius.circular(24),
-            ),
-            child: Container(
-              color: Colors.white.withOpacity(0.35),
-              height: kToolbarHeight * 1.3 + MediaQuery.of(context).padding.top,
-              child: SafeArea(
-                child: Padding(
-                  padding: const EdgeInsets.only(top: kToolbarHeight * 1.3 / 4),
-                  child: Center(
+          PreferredSize(
+            preferredSize: Size.fromHeight(kToolbarHeight * 1.3),
+            child: ClipRRect(
+              borderRadius: const BorderRadius.only(
+                bottomLeft: Radius.circular(24),
+                bottomRight: Radius.circular(24),
+              ),
+              child: Container(
+                color: Colors.white.withOpacity(0.35),
+                child: SafeArea(
+                  bottom: false,
+                  child: Container(
+                    height: kToolbarHeight * 1.3,
+                    alignment: Alignment.center,
                     child: Text(
                       'Nice work!',
                       style: TextStyle(

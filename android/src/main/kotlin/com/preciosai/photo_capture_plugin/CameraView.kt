@@ -180,6 +180,7 @@ class CameraView @JvmOverloads constructor(
     private var focusPoint: PointF? = null
 
     private val progressBarLottieAnimation = LottieAnimation(context, "assets/animation/progress_bar.json")
+    private val imageProxyConverter = ImageProxyConverter(context)
     private var reusableBitmap: Bitmap? = null
 
     private val previewView: PreviewView = PreviewView(context).apply {
@@ -803,7 +804,6 @@ class CameraView @JvmOverloads constructor(
         }
     }
 
-
     private fun onFrame(imageProxy: ImageProxy) {
          if (captureRequested) {
             val state = OverlayState(
@@ -822,21 +822,6 @@ class CameraView @JvmOverloads constructor(
             return
         }
 
-        /*
-        val bitmap = imageProxy.toBitmap() ?: run {
-            Log.e(TAG, "Failed to convert ImageProxy to Bitmap")
-            return
-        }
-         */
-        if (reusableBitmap == null || reusableBitmap!!.width != imageProxy.width || reusableBitmap!!.height != imageProxy.height) {
-            reusableBitmap = Bitmap.createBitmap(
-                imageProxy.width,
-                imageProxy.height,
-                Bitmap.Config.ARGB_8888
-            )
-        }
-        reusableBitmap!!.copyPixelsFromBuffer(imageProxy.planes[0].buffer)
-
         predictor?.let { p ->
             if (!shouldRunInference()) {
                 // Log.d(TAG, "Skipping inference due to frequency control")
@@ -845,6 +830,7 @@ class CameraView @JvmOverloads constructor(
 
             try {
                 if (refDetectionResult == null) return@let null
+
                 // Get device orientation
                 val orientation = context.resources.configuration.orientation
                 val isLandscape = orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -853,20 +839,31 @@ class CameraView @JvmOverloads constructor(
                 // Set camera facing information in predictor
                 (p as? BasePredictor)?.isFrontCamera = isFrontCamera
 
+                reusableBitmap = imageProxyConverter.convert(
+                    image = imageProxy,
+                    reusable = reusableBitmap,
+                    rotationDegrees = imageProxy.imageInfo.rotationDegrees,
+                    isFrontCamera = isFrontCamera,
+                )
+
                 // TODO проверить!!!
                 // For camera feed, we typically rotate the bitmap
                 // In landscape mode, we don't rotate, so width/height should match actual bitmap dimensions
                 val rotateForCamera = if (imageProxy.imageInfo.rotationDegrees != 0) true else false
                 var tInit = System.nanoTime()
 
+                // CameraViewUtils.saveBitmapToFile(context, reusableBitmap!!, "ref_frame_predict_${System.currentTimeMillis()}")
                 getCorrectedResolution(imageProxy.width, imageProxy.height, imageProxy.imageInfo.rotationDegrees)
+                val result = p.predict(reusableBitmap!!, reusableBitmap!!.width, reusableBitmap!!.height, rotateForCamera, isLandscape, isFrontCamera, imageProxy.imageInfo.rotationDegrees)
+                /*
                 val result = if (isLandscape) {
                     p.predict(reusableBitmap!!, imageProxy.width, imageProxy.height, rotateForCamera, isLandscape, isFrontCamera, imageProxy.imageInfo.rotationDegrees)
                 } else {
                     // Portrait mode
                     p.predict(reusableBitmap!!, imageProxy.height, imageProxy.width, rotateForCamera, isLandscape, isFrontCamera, imageProxy.imageInfo.rotationDegrees)
                 }
-                // Log.d(TAG, "Prediction time ${(System.nanoTime() - tInit) / 1_000_000.0}")
+
+                 */
 
                 if (result.objects.isEmpty() || refDetectionResult!!.objects.isEmpty()) {
                     val state = OverlayState(
@@ -1185,6 +1182,9 @@ class CameraView @JvmOverloads constructor(
                 delay(2000)
             }
         }
+
+        imageProxyConverter.release()
+        reusableBitmap?.recycle()
 
         if (::cameraProviderFuture.isInitialized) {
             val cameraProvider = cameraProviderFuture.get()

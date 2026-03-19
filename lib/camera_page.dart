@@ -47,6 +47,7 @@ class _CameraPageState extends State<CameraPage> {
   final GlobalKey _stepTwo = GlobalKey();
   final GlobalKey _stepThree = GlobalKey();
   final GlobalKey _stepFour = GlobalKey();
+  final GlobalKey _stepFive = GlobalKey();
 
   // Текстовые подсказки делаются только для первого кадра в рамках запуска приложения
   static bool _isFirstVisit = true;
@@ -99,23 +100,6 @@ class _CameraPageState extends State<CameraPage> {
     refPredictionsJsonMap = jsonDecode(jsonString);
   }
 
-  Future<bool> _checkFirstRunShowcase() async {
-    final prefs = await SharedPreferences.getInstance();
-    final isFirstRun = prefs.getBool('isFirstRun_cameraPage') ?? true;
-
-    if (isFirstRun && mounted) {
-      await prefs.setBool('isFirstRun_cameraPage', false);
-      ShowcaseView.get().startShowCase([
-        _stepOne,
-        _stepTwo,
-        _stepThree,
-        _stepFour,
-      ]);
-      return true;
-    }
-    return false;
-  }
-
   Future<void> _startOnboardingFlow() async {
     final prefs = await SharedPreferences.getInstance();
     final isFirstRun = prefs.getBool('isFirstRun_cameraPage') ?? true;
@@ -128,6 +112,7 @@ class _CameraPageState extends State<CameraPage> {
         _stepTwo,
         _stepThree,
         _stepFour,
+        _stepFive,
       ]);
     } else {
       if (_isFirstVisit && mounted) {
@@ -271,7 +256,6 @@ class _CameraPageState extends State<CameraPage> {
           ),
            */
 
-          // TODO fix camera switch
           // Camera switch
           Positioned(
             bottom:
@@ -384,6 +368,34 @@ class _CameraPageState extends State<CameraPage> {
                 ),
               ),
 
+            child: const SizedBox(width: 10, height: 10),
+          ),
+
+          Showcase.withWidget(
+            key: _stepThree,
+            overlayOpacity: 0.85,
+            targetShapeBorder: const CircleBorder(),
+            targetPadding: EdgeInsets.zero,
+            container: Align(
+              alignment: Alignment.center,
+              child: SizedBox(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(height: MediaQuery.of(context).size.height * 0.3),
+                    const Text(
+                      'The resulting photo will be saved automatically in your gallery in the PreciosAI application folder.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ]
+                )
+              ),
+            ),
             child: const SizedBox(width: 10, height: 10),
           ),
 
@@ -564,12 +576,12 @@ class _CameraPageState extends State<CameraPage> {
 
           // Кнопка визуализации
           VisualizationSettingsButton(
-            showcaseKey: _stepThree,
+            showcaseKey: _stepFour,
           ),
 
           // Кнопка слайдера для регулирования желаемой степени похожести позы
           PoseSimilaritySliderButton(
-            showcaseKey: _stepFour,
+            showcaseKey: _stepFive,
             onShowcaseTap: () {
               if (_isFirstVisit && mounted) {
                 showHintsSequence();

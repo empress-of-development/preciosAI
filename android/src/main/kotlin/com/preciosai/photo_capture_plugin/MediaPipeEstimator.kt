@@ -138,6 +138,7 @@ class MediaPipeEstimator(
         t0 = System.nanoTime()
         val timestampMs = System.nanoTime() / 1_000_000
 
+        /*
         val processedBitmap = if (rotateForCamera || isFrontCamera) {
 
             if (reusableBitmap == null ||
@@ -166,18 +167,19 @@ class MediaPipeEstimator(
         } else {
             bitmap
         }
+         */
 
-        if (mpImage == null || mpImageBitmap !== processedBitmap) {
-            mpImage = BitmapImageBuilder(processedBitmap).build()
-            mpImageBitmap = processedBitmap
+        if (mpImage == null || mpImageBitmap !== bitmap) {
+            mpImage = BitmapImageBuilder(bitmap).build()
+            mpImageBitmap = bitmap
         }
 
         val result = poseLandmarker.detectForVideo(mpImage!!, timestampMs)
 
         val prediction = mapToPredictionObj(
             result,
-            processedBitmap.width.toFloat(),
-            processedBitmap.height.toFloat(),
+            bitmap.width.toFloat(),
+            bitmap.height.toFloat(),
         )
 
         val infTime = (System.nanoTime() - t0) / 1_000_000.0
