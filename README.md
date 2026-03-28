@@ -26,6 +26,7 @@
   - **Smart Shutter**: Automated capture triggers as soon as a perfect match is detected, ensuring you never miss a shot.
   - **Pro Controls**: Integrated support for Flash, Night Mode, and seamless camera switching.
 - **Reference-Driven Gallery**: A built-in management hub to organize your captures and store reference inspirations for future sessions.
+
 ## 🛠 Tech Stack
 
 - **Core & Languages**: Built with **Dart** (Flutter SDK ^3.8.1) and **Kotlin** (Android SDK) for a seamless cross-platform experience with deep native integration.
@@ -74,6 +75,14 @@
 The app includes a settings panel accessible from the camera view where you can adjust:
 - **Degree of similarity**: Controls how strictly the AI matches objects.
 - **Resulting frames**: Defines how many candidate shots are captured during a scan.
+
+## 🙏 Acknowledgements
+
+This project uses the following open-source components and models:
+
+- **[Ultralytics YOLO11](https://github.com/ultralytics/ultralytics)** — State-of-the-art object detection and pose estimation. Licensed under **AGPL-3.0**.
+- **[MMPose](https://github.com/open-mmlab/mmpose)** — A comprehensive toolbox for pose estimation (RTMPose). Licensed under **Apache-2.0**.
+- **[Google MediaPipe](https://github.com/google/mediapipe)** — High-speed machine learning solutions for computer vision tasks. Licensed under **Apache-2.0**.
 
 ## 📄 License
 
