@@ -75,6 +75,10 @@ The app includes a settings panel accessible from the camera view where you can 
 - **Degree of similarity**: Controls how strictly the AI matches objects.
 - **Resulting frames**: Defines how many candidate shots are captured during a scan.
 
+## 📄 License
+
+This project is licensed under the GNU Affero General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
+
 ---
 
 <div align="center">

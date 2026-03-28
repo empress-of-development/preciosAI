@@ -35,6 +35,9 @@ To provide its core features, the Application explicitly requests the following 
 * **WRITE_EXTERNAL_STORAGE**: To save processed photos to your device
   on Android 9 and below. On Android 10 and above, no storage permission
   is required to save photos.
+* **INTERNET / ACCESS_NETWORK_STATE**: Used solely to load custom
+  fonts (Google Fonts) for the app's interface. No user data is
+  transmitted over the internet.
 
 We do not request access to your location, contacts, microphone, or any other sensitive device data.
 
@@ -57,7 +60,7 @@ The Application is not intended for children under 13 years of age. Since we do 
 ## 7. Changes to This Privacy Policy
 We may update this Privacy Policy from time to time to reflect changes in our practices or for legal reasons. Any changes are effective immediately upon posting. We will notify users of significant updates through an in-app notification when feasible.
 
-## 7. Contact Us
+## 8. Contact Us
 If you have any questions or concerns regarding this Privacy Policy or our data practices, do not hesitate to contact us at:
 * **Email**: preciosai.app@gmail.com
 * **Website**: https://github.com/empress-of-development/preciosAI/blob/main/PRIVACY_POLICY.md
