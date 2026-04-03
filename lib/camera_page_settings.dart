@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:preciosai/l10n/app_localizations.dart';
 import 'package:preciosai/logger.dart';
 import 'package:showcaseview/showcaseview.dart';
 
@@ -53,6 +54,7 @@ class _PoseSimilaritySliderButtonState
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Stack(
       children: [
         if (_isSliderVisible)
@@ -68,7 +70,7 @@ class _PoseSimilaritySliderButtonState
           top: 70,
           right: 16,
           child: _buildShowcaseWrapper(
-            description: 'and the degree of similarity',
+            description: l10n.degreeOfSimilarityDesc,
             child: GestureDetector(
               onTap: () {
                 setState(() {
@@ -92,14 +94,14 @@ class _PoseSimilaritySliderButtonState
                     ),
                   ],
                 ),
-                child: const Row(
+                child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.tune, color: Colors.white, size: 18),
-                    SizedBox(width: 8),
+                    const Icon(Icons.tune, color: Colors.white, size: 18),
+                    const SizedBox(width: 8),
                     Text(
-                      'Degree of similarity',
-                      style: TextStyle(
+                      l10n.degreeOfSimilarity,
+                      style: const TextStyle(
                         color: Colors.white,
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
@@ -212,12 +214,12 @@ class VisualizationSettingsButton extends StatefulWidget {
 class _VisualizationSettingsButtonState
     extends State<VisualizationSettingsButton> {
   bool _isPanelVisible = false;
-  String _selectedOption = 'Skeleton+Capsules';
+  String _selectedOption = 'skeletonCapsules';
   final List<String> _options = [
-    'Empty',
-    'Skeleton',
-    'Capsules',
-    'Skeleton+Capsules',
+    'empty',
+    'skeleton',
+    'capsules',
+    'skeletonCapsules',
   ];
   static const methodChannel = MethodChannel('photo_capture_channel_default');
 
@@ -250,6 +252,7 @@ class _VisualizationSettingsButtonState
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Stack(
       children: [
         if (_isPanelVisible)
@@ -265,7 +268,7 @@ class _VisualizationSettingsButtonState
           top: 70,
           left: 16,
           child: _buildShowcaseWrapper(
-            description: 'Here you can configure the visualization settings',
+            description: l10n.visualizationDesc,
             child: GestureDetector(
               onTap: () {
                 setState(() {
@@ -289,14 +292,14 @@ class _VisualizationSettingsButtonState
                     ),
                   ],
                 ),
-                child: const Row(
+                child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.brush, color: Colors.white, size: 18),
-                    SizedBox(width: 8),
+                    const Icon(Icons.brush, color: Colors.white, size: 18),
+                    const SizedBox(width: 8),
                     Text(
-                      "Visualization",
-                      style: TextStyle(
+                      l10n.visualization,
+                      style: const TextStyle(
                         color: Colors.white,
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
@@ -348,6 +351,7 @@ class _VisualizationSettingsButtonState
 
   Widget _buildOptionItem(String title) {
     final isSelected = _selectedOption == title;
+    final l10n = AppLocalizations.of(context)!;
 
     return InkWell(
       onTap: () {
@@ -366,7 +370,7 @@ class _VisualizationSettingsButtonState
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              title,
+              l10n.visualizationType(title),
               style: TextStyle(
                 color: isSelected ? Colors.white : Colors.white70,
                 fontSize: 14,

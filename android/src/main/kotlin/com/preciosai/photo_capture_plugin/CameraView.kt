@@ -153,7 +153,7 @@ class CameraView @JvmOverloads constructor(
     private var poseComparisonMode = "cosine" // simple OKS PDJ cosine
 
     public var comparePoseThreshold = 0.7
-    public var visualizationMode = "skeleton+capsules"
+    public var visualizationMode = "skeletonCapsules"
 
     // Throttling variables for performance control
     private var throttleState = ThrottleState()

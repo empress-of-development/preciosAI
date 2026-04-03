@@ -197,7 +197,7 @@ class PhotoCapturePlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCal
                     if (visualizationMode != null) {
                         val platformView = platformViewFactory.activeViews.values.first()
                         if (platformView != null) {
-                            platformView.cameraViewInstance.visualizationMode = visualizationMode.lowercase()
+                            platformView.cameraViewInstance.visualizationMode = visualizationMode
                             println("Visualization mode from flutter sent: $visualizationMode%")
                             result.success(null)
                         }

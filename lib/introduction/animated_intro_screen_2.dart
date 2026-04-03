@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:preciosai/l10n/app_localizations.dart';
 
 class AnimatedIntroScreen2 extends StatefulWidget {
   const AnimatedIntroScreen2({
@@ -280,6 +281,7 @@ class _TextPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Stack(
       children: [
         // vector frame around text
@@ -292,11 +294,11 @@ class _TextPanel extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                const Text(
-                  "Find Your\nInspiration.",
+                Text(
+                  l10n.findInspiration,
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 36,
+                  style: const TextStyle(
+                    fontSize: 28,
                     height: 1.05,
                     fontWeight: FontWeight.w800,
                     color: Colors.white,
@@ -305,7 +307,7 @@ class _TextPanel extends StatelessWidget {
                 ),
                 const SizedBox(height: 14),
                 Text(
-                  "Choose from curated poses or upload your own photo to recreate the look. Save ideas and plan your next shoot effortlessly.",
+                  l10n.findInspirationSubtitle,
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 16.2,

@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:preciosai/l10n/app_localizations.dart';
 
 class AnimatedIntroScreen3 extends StatefulWidget {
   const AnimatedIntroScreen3({
@@ -146,6 +147,7 @@ class _AnimatedIntroScreen3State extends State<AnimatedIntroScreen3>
   @override
   Widget build(BuildContext context) {
     final ar = _assetAspectRatio ?? (9 / 19.5);
+    final l10n = AppLocalizations.of(context)!;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -189,10 +191,10 @@ class _AnimatedIntroScreen3State extends State<AnimatedIntroScreen3>
                     position: _titleSlide,
                     child: FadeTransition(
                       opacity: _titleOpacity,
-                      child: const Text(
-                        'Let Your Camera\nGuide You.',
+                      child: Text(
+                        l10n.letCameraGuideYou,
                         textAlign: TextAlign.center,
-                        style: TextStyle(
+                        style: const TextStyle(
                           color: Colors.white,
                           fontSize: 34,
                           fontWeight: FontWeight.w800,
@@ -240,12 +242,10 @@ class _AnimatedIntroScreen3State extends State<AnimatedIntroScreen3>
                     position: _descSlide,
                     child: FadeTransition(
                       opacity: _descOpacity,
-                      child: const Text(
-                        'Our smart overlay detects your subject’s pose.\n'
-                        'Follow the on-screen hints to adjust your pose and angle — '
-                        'the photo is captured automatically once everything aligns perfectly.',
+                      child: Text(
+                        l10n.letCameraGuideYouSubtitle,
                         textAlign: TextAlign.center,
-                        style: TextStyle(
+                        style: const TextStyle(
                           color: Color(0xFFEAC7FF),
                           fontSize: 16,
                           height: 1.4,

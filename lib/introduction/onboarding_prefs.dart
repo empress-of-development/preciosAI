@@ -4,8 +4,9 @@ class OnboardingPrefs {
   static const _key = 'onboarding_done';
 
   static Future<bool> isDone() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_key) ?? false;
+    //final prefs = await SharedPreferences.getInstance();
+    //return prefs.getBool(_key) ?? false;
+    return false;
   }
 
   static Future<void> markDone() async {

@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:preciosai/l10n/app_localizations.dart';
 
 class AnimatedIntroScreen1 extends StatefulWidget {
   const AnimatedIntroScreen1({
@@ -98,7 +99,7 @@ class _AnimatedIntroScreen1State extends State<AnimatedIntroScreen1>
   @override
   Widget build(BuildContext context) {
     WidgetsBinding.instance.addPostFrameCallback((_) => _measureRects());
-
+    final l10n = AppLocalizations.of(context)!;
     final size = MediaQuery.sizeOf(context);
 
     return Stack(
@@ -209,8 +210,8 @@ class _AnimatedIntroScreen1State extends State<AnimatedIntroScreen1>
                               from: 0.05,
                               to: 0.22,
                               y: 10,
-                              child: const Center(
-                                child: _PillLabel(text: 'BEFORE'),
+                              child: Center(
+                                child: _PillLabel(text: l10n.before),
                               ),
                             ),
                           ),
@@ -223,8 +224,8 @@ class _AnimatedIntroScreen1State extends State<AnimatedIntroScreen1>
                               from: 0.10,
                               to: 0.27,
                               y: 10,
-                              child: const Center(
-                                child: _PillLabel(text: 'AFTER'),
+                              child: Center(
+                                child: _PillLabel(text: l10n.after),
                               ),
                             ),
                           ),
@@ -246,24 +247,15 @@ class _AnimatedIntroScreen1State extends State<AnimatedIntroScreen1>
                         from: 0.52,
                         to: 0.78,
                         y: 16,
-                        child: RichText(
+                        child: Text(
+                          l10n.picturePerfectTitle,
                           textAlign: TextAlign.center,
-                          text: TextSpan(
-                            style: const TextStyle(
-                              fontSize: 36,
-                              height: 1.05,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: -0.6,
-                              color: Colors.white,
-                            ),
-                            children: const [
-                              TextSpan(text: 'Picture-perfect\n'),
-                              TextSpan(text: 'poses, '),
-                              TextSpan(
-                                text: 'every time',
-                                style: TextStyle(color: Color(0xFFFF6FB1)),
-                              ),
-                            ],
+                          style: const TextStyle(
+                            fontSize: 32,
+                            height: 1.05,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.6,
+                            color: Colors.white,
                           ),
                         ),
                       ),
@@ -274,7 +266,7 @@ class _AnimatedIntroScreen1State extends State<AnimatedIntroScreen1>
                         to: 0.92,
                         y: 18,
                         child: Text(
-                          "Say goodbye to awkward photos.\nWhether you’re behind the camera or in front of it, we’ll help you capture the perfect shot.",
+                          l10n.picturePerfectSubtitle,
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontSize: 16.5,

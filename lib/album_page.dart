@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:preciosai/l10n/app_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:showcaseview/showcaseview.dart';
 import 'package:uuid/uuid.dart';
@@ -30,6 +31,7 @@ Future<void> _checkAndShowDoneShowcase(
   BuildContext context,
   GlobalKey key,
 ) async {
+  final l10n = AppLocalizations.of(context)!;
   final prefs = await SharedPreferences.getInstance();
   final isFirstRun = prefs.getBool('isFirstRun_doneButton') ?? true;
 
@@ -107,23 +109,23 @@ class Album {
   );
 }
 
-final List<Album> albumsDefault = [
+List<Album> getAlbumsDefault(AppLocalizations l10n) => [
   Album(
-    title: 'Full body',
+    title: l10n.fullBody,
     cover: const AlbumImageRef.asset(
       'assets/gallery_images/full_body/full_body_1.jpg',
     ),
     imagesGeneralPath: 'assets/gallery_images/full_body/',
   ),
   Album(
-    title: 'Medium shot',
+    title: l10n.mediumShot,
     cover: const AlbumImageRef.asset(
       'assets/gallery_images/medium_shot/medium_shot_1.jpg',
     ),
     imagesGeneralPath: 'assets/gallery_images/medium_shot/',
   ),
   Album(
-    title: 'Portrait',
+    title: l10n.portrait,
     cover: const AlbumImageRef.asset(
       'assets/gallery_images/portrait/portrait_1.jpg',
     ),
@@ -161,6 +163,7 @@ class _SelectedPhotoScreenState extends State<SelectedPhotoScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Scaffold(
       backgroundColor: Colors.black,
 
@@ -200,7 +203,7 @@ class _SelectedPhotoScreenState extends State<SelectedPhotoScreen> {
                   padding: const EdgeInsets.only(bottom: 32),
                   child: Showcase(
                     key: _doneKey,
-                    description: 'Tap here to proceed with the selected photo',
+                    description: l10n.tapToProceedDesc,
                     descTextStyle: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w500,
@@ -230,7 +233,6 @@ class AlbumScreen extends StatefulWidget {
 
 class _AlbumScreenState extends State<AlbumScreen> {
   File? pickedImage;
-  late final List<Album> builtInAlbums;
   final List<Album> albums = [];
   final Set<int> protectedIndexes = {0, 1, 2};
 
@@ -244,14 +246,23 @@ class _AlbumScreenState extends State<AlbumScreen> {
   @override
   void initState() {
     super.initState();
-    builtInAlbums = List<Album>.from(albumsDefault);
-    albums.addAll(builtInAlbums);
+    // Default albums will be initialized in didChangeDependencies or build when l10n is available
     _loadUserAlbums();
 
     // Trigger showcase on first run after layout builds
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkFirstRun();
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final l10n = AppLocalizations.of(context);
+    if (l10n != null && albums.isEmpty) {
+      albums.addAll(getAlbumsDefault(l10n));
+      _loadUserAlbums(); // Refresh with user albums if needed
+    }
   }
 
   @override
@@ -286,10 +297,12 @@ class _AlbumScreenState extends State<AlbumScreen> {
   Future<void> _loadUserAlbums() async {
     try {
       final saved = await AlbumStorage.loadAlbums();
-      setState(() {
-        final existingIds = albums.map((a) => a.uuid).toSet();
-        albums.addAll(saved.where((a) => !existingIds.contains(a.uuid)));
-      });
+      if (mounted) {
+        setState(() {
+          final existingIds = albums.map((a) => a.uuid).toSet();
+          albums.addAll(saved.where((a) => !existingIds.contains(a.uuid)));
+        });
+      }
     } catch (e) {
       debugPrint('Failed to load albums: $e');
     }
@@ -345,20 +358,21 @@ class _AlbumScreenState extends State<AlbumScreen> {
     }
 
     final album = albums[index];
+    final l10n = AppLocalizations.of(context)!;
 
     final confirm = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Do you want delete this album?'),
-        content: Text('“${album.title}” will be deleted.'),
+        title: Text(l10n.deleteAlbumTitle),
+        content: Text(l10n.deleteAlbumConfirm(album.title)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text(l10n.cancel),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete'),
+            child: Text(l10n.delete),
           ),
         ],
       ),
@@ -372,6 +386,7 @@ class _AlbumScreenState extends State<AlbumScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Scaffold(
       backgroundColor: Colors.black,
       extendBody: true,
@@ -391,10 +406,10 @@ class _AlbumScreenState extends State<AlbumScreen> {
                 targetPadding: EdgeInsets.zero,
                 container: SizedBox(
                   width: MediaQuery.of(context).size.width * 0.8,
-                  child: const Text(
-                    'Welcome to PreciosAI',
+                  child: Text(
+                    l10n.welcomeTitle,
                     textAlign: TextAlign.center,
-                    style: TextStyle(
+                    style: const TextStyle(
                       color: Colors.white,
                       fontSize: 30,
                       fontWeight: FontWeight.bold,
@@ -407,10 +422,10 @@ class _AlbumScreenState extends State<AlbumScreen> {
                   targetPadding: EdgeInsets.zero,
                   container: SizedBox(
                     width: MediaQuery.of(context).size.width * 0.8,
-                    child: const Text(
-                      'First, you need to choose a photo with preferred pose and angle',
+                    child: Text(
+                      l10n.welcomeSubtitle,
                       textAlign: TextAlign.center,
-                      style: TextStyle(
+                      style: const TextStyle(
                         color: Colors.white,
                         fontSize: 24,
                         fontWeight: FontWeight.w500,
@@ -441,7 +456,7 @@ class _AlbumScreenState extends State<AlbumScreen> {
                         padding: const EdgeInsets.only(top: kToolbarHeight / 3),
                         child: Center(
                           child: Text(
-                            "Let's choose a reference photo",
+                            l10n.chooseReferenceTitle,
                             style: TextStyle(
                               color: Colors.grey.shade900,
                               fontSize: 24,
@@ -577,7 +592,7 @@ class _AlbumScreenState extends State<AlbumScreen> {
                         if (index == 0) {
                           return Showcase(
                             key: _stepThree,
-                            description: 'You can select from prepared albums',
+                            description: l10n.selectFromAlbumsDesc,
                             descTextStyle: const TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.w500,
@@ -601,7 +616,7 @@ class _AlbumScreenState extends State<AlbumScreen> {
                       padding: const EdgeInsets.only(bottom: 32),
                       child: Showcase(
                         key: _stepFour,
-                        description: 'upload from your gallery',
+                        description: l10n.uploadFromGalleryDesc,
                         descTextStyle: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w500,
@@ -617,7 +632,7 @@ class _AlbumScreenState extends State<AlbumScreen> {
                       padding: const EdgeInsets.only(bottom: 32, left: 16),
                       child: Showcase(
                         key: _stepFive,
-                        description: 'or use random choice',
+                        description: l10n.useRandomChoiceDesc,
                         descTextStyle: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w500,
@@ -794,6 +809,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final images = _images;
+    final l10n = AppLocalizations.of(context)!;
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -824,7 +840,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.edit, size: 40),
-            tooltip: 'Edit album',
+            tooltip: l10n.editAlbum,
             onPressed: () async {
               final updated = await Navigator.push<Album?>(
                 context,
@@ -928,7 +944,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
                     padding: const EdgeInsets.only(bottom: 32),
                     child: Showcase(
                       key: _doneKey,
-                      description: 'Tap here to proceed with the selected photo',
+                      description: l10n.tapToProceedDesc,
                       descTextStyle: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w500,
@@ -980,6 +996,7 @@ class _PhotoHeroScreenState extends State<PhotoHeroScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return GestureDetector(
       onTap: () => Navigator.pop(context),
       child: Scaffold(
@@ -1006,7 +1023,10 @@ class _PhotoHeroScreenState extends State<PhotoHeroScreen> {
                       child: InteractiveViewer(
                         child: widget.image.source == AlbumImageSource.asset
                             ? Image.asset(widget.image.value, fit: BoxFit.cover)
-                            : Image.file(File(widget.image.value), fit: BoxFit.cover),
+                            : Image.file(
+                                File(widget.image.value),
+                                fit: BoxFit.cover,
+                              ),
                       ),
                     ),
                   ),
@@ -1022,7 +1042,7 @@ class _PhotoHeroScreenState extends State<PhotoHeroScreen> {
                     padding: const EdgeInsets.only(bottom: 32),
                     child: Showcase(
                       key: _doneKey,
-                      description: 'Tap here to proceed with the selected photo',
+                      description: l10n.tapToProceedDesc,
                       descTextStyle: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.w500,

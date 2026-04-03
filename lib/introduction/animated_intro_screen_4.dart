@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:preciosai/l10n/app_localizations.dart';
 
 class AnimatedIntroScreen4 extends StatefulWidget {
   const AnimatedIntroScreen4({
@@ -122,7 +123,7 @@ class _AnimatedIntroScreen4State extends State<AnimatedIntroScreen4>
         stream.removeListener(listener);
       },
       onError: (error, stack) {
-        debugPrint('❌ Failed to resolve asset size: $error');
+        debugPrint('Failed to resolve asset size: $error');
         stream.removeListener(listener);
       },
     );
@@ -140,6 +141,7 @@ class _AnimatedIntroScreen4State extends State<AnimatedIntroScreen4>
   @override
   Widget build(BuildContext context) {
     final ar = _assetAspectRatio ?? (9 / 16);
+    final l10n = AppLocalizations.of(context)!;
 
     return LayoutBuilder(
       builder: (context, c) {
@@ -206,9 +208,9 @@ class _AnimatedIntroScreen4State extends State<AnimatedIntroScreen4>
                     position: _titleSlide,
                     child: FadeTransition(
                       opacity: _titleOpacity,
-                      child: const _GradientTitle(
-                        leftText: 'Your Photos ',
-                        rightText: 'Stay Yours',
+                      child: _GradientTitle(
+                        leftText: l10n.yourPhotos,
+                        rightText: l10n.stayYours,
                       ),
                     ),
                   ),
@@ -220,10 +222,7 @@ class _AnimatedIntroScreen4State extends State<AnimatedIntroScreen4>
                     child: FadeTransition(
                       opacity: _descOpacity,
                       child: Text(
-                        'We believe in complete privacy.\n'
-                        'All pose processing happens directly on your device, '
-                        'no data is ever collected or sent to the cloud.\n'
-                        'It even works perfectly offline.',
+                        l10n.privacySubtitle,
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           color: Colors.white.withOpacity(0.82),

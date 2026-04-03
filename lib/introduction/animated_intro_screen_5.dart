@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:preciosai/l10n/app_localizations.dart';
 
 class AnimatedIntroScreen5 extends StatefulWidget {
   const AnimatedIntroScreen5({
@@ -140,6 +141,7 @@ class _AnimatedIntroScreen5State extends State<AnimatedIntroScreen5>
   @override
   Widget build(BuildContext context) {
     final ar = _assetAspectRatio ?? (9 / 16);
+    final l10n = AppLocalizations.of(context)!;
 
     return LayoutBuilder(
       builder: (context, c) {
@@ -216,11 +218,11 @@ class _AnimatedIntroScreen5State extends State<AnimatedIntroScreen5>
                         position: _titleSlide,
                         child: FadeTransition(
                           opacity: _titleOpacity,
-                          child: const Text(
-                            "Your perfect pose\nis one shot away",
+                          child: Text(
+                            l10n.oneShotAway,
                             textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 36,
+                            style: const TextStyle(
+                              fontSize: 28,
                               height: 1.05,
                               fontWeight: FontWeight.w800,
                               color: Colors.white,
@@ -237,8 +239,7 @@ class _AnimatedIntroScreen5State extends State<AnimatedIntroScreen5>
                         child: FadeTransition(
                           opacity: _descOpacity,
                           child: Text(
-                            'Precise AI guidance for your\n'
-                            'most precious moments',
+                            l10n.aiGuidance,
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               color: Colors.white.withOpacity(0.82),

@@ -5,13 +5,14 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:lottie/lottie.dart';
 import 'package:preciosai/camera_page_settings.dart';
+import 'package:preciosai/l10n/app_localizations.dart';
 import 'package:preciosai/logger.dart';
 import 'package:preciosai/recognition_view.dart';
 import 'package:preciosai/small_reference_photo.dart';
-import 'package:showcaseview/showcaseview.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:lottie/lottie.dart';
+import 'package:showcaseview/showcaseview.dart';
 
 class CameraPage extends StatefulWidget {
   final String refImagePath;
@@ -123,10 +124,9 @@ class _CameraPageState extends State<CameraPage> {
   }
 
   Future<void> sendImageToNative(
-      Uint8List bytes,
-      String? assetPredictions,
-      ) async {
-
+    Uint8List bytes,
+    String? assetPredictions,
+  ) async {
     if (!modelLoaded) {
       await _modelReadyCompleter.future;
     }
@@ -173,16 +173,12 @@ class _CameraPageState extends State<CameraPage> {
   }
 
   Future<void> showHintsSequence() async {
+    if (!mounted) return;
+    final l10n = AppLocalizations.of(context)!;
     final List<String> messages = [
-      //'Now you see schematic skeleton of the reference photo',
-      //'And a second skeleton that matches your model',
-      "If you don't see skeleton that matches your model, move the camera a little",
-      'Place the model in the highlighted sector and merge the skeletons',
-      //'Then you need to merge the skeletons using auxiliary color sectors.',
-      //'For the perfect photo each of them must be green',
-      'Move the camera slowly and give your model cues',
-      //'The zoom will be adjusted automatically, but you can adjust it yourself if necessary',
-      //'Currently, only one person can be photographed'
+      l10n.noSkeletonHint,
+      l10n.mergeSkeletonsHint,
+      l10n.moveSlowlyHint,
     ];
 
     for (String msg in messages) {
@@ -217,6 +213,7 @@ class _CameraPageState extends State<CameraPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final orientation = MediaQuery.of(context).orientation;
     final isLandscape = orientation == Orientation.landscape;
     final screenHeight = MediaQuery.of(context).size.height;
@@ -289,14 +286,14 @@ class _CameraPageState extends State<CameraPage> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      SizedBox(height: MediaQuery.of(context).size.height * 0.1),
+                      SizedBox(
+                        height: MediaQuery.of(context).size.height * 0.1,
+                      ),
 
-                      const Text(
-                        'You will see schematic skeleton of the reference photo '
-                            'and a skeleton that matches your model.\n'
-                            ' Place the model in the highlighted sector and merge the skeletons.',
+                      Text(
+                        l10n.poseMatchingHint,
                         textAlign: TextAlign.center,
-                        style: TextStyle(
+                        style: const TextStyle(
                           color: Colors.white,
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
@@ -318,55 +315,55 @@ class _CameraPageState extends State<CameraPage> {
           ),
 
           Showcase.withWidget(
-              key: _stepTwo,
-              overlayOpacity: 0.85,
-              targetShapeBorder: const CircleBorder(),
-              targetPadding: EdgeInsets.zero,
-              container: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () {
-                  ShowcaseView.get().completed(_stepTwo);
-                },
-                child: Align(
-                  alignment: Alignment.center,
-                  child: SizedBox(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        SizedBox(height: MediaQuery.of(context).size.height * 0.1),
+            key: _stepTwo,
+            overlayOpacity: 0.85,
+            targetShapeBorder: const CircleBorder(),
+            targetPadding: EdgeInsets.zero,
+            container: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () {
+                ShowcaseView.get().completed(_stepTwo);
+              },
+              child: Align(
+                alignment: Alignment.center,
+                child: SizedBox(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        height: MediaQuery.of(context).size.height * 0.1,
+                      ),
 
-                        const Text(
-                          'Auxiliary sectors display the correspondence of body parts to the desired pose. '
-                              'For a perfect shot, each of them should be green.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
+                      Text(
+                        l10n.poseZonesHint,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
                         ),
-                        const SizedBox(height: 24),
-                        Lottie.asset(
-                          'assets/onboarding/animation/pose_zones.json',
-                          height: MediaQuery.of(context).size.height * 0.5,
-                          fit: BoxFit.contain,
+                      ),
+                      const SizedBox(height: 24),
+                      Lottie.asset(
+                        'assets/onboarding/animation/pose_zones.json',
+                        height: MediaQuery.of(context).size.height * 0.5,
+                        fit: BoxFit.contain,
+                      ),
+                      const SizedBox(height: 24),
+                      Text(
+                        l10n.zoomHint,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
                         ),
-                        const SizedBox(height: 24),
-                        const Text(
-                          'The zoom will be adjusted automatically, but you can change it yourself if necessary. '
-                              'Currently, only one person can be photographed.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
               ),
+            ),
 
             child: const SizedBox(width: 10, height: 10),
           ),
@@ -383,17 +380,17 @@ class _CameraPageState extends State<CameraPage> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     SizedBox(height: MediaQuery.of(context).size.height * 0.3),
-                    const Text(
-                      'The resulting photo will be saved automatically in your gallery in the PreciosAI application folder.',
+                    Text(
+                      l10n.autoSaveHint,
                       textAlign: TextAlign.center,
-                      style: TextStyle(
+                      style: const TextStyle(
                         color: Colors.white,
                         fontSize: 24,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
-                  ]
-                )
+                  ],
+                ),
               ),
             ),
             child: const SizedBox(width: 10, height: 10),
@@ -436,15 +433,15 @@ class _CameraPageState extends State<CameraPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    const Text(
-                      'Degree of similarity',
+                    Text(
+                      l10n.degreeOfSimilarity,
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.white, fontSize: 16),
+                      style: const TextStyle(color: Colors.white, fontSize: 16),
                     ),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: List.generate(3, (index) {
-                        final labels = ['Low', 'Medium', 'High'];
+                        final labels = [l10n.low, l10n.medium, l10n.high];
                         return GestureDetector(
                           onTap: () {
                             setState(() {
@@ -480,10 +477,10 @@ class _CameraPageState extends State<CameraPage> {
                       }),
                     ),
                     const SizedBox(height: 12),
-                    const Text(
-                      'Number of resulting frames',
+                    Text(
+                      l10n.numFrames,
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.white, fontSize: 16),
+                      style: const TextStyle(color: Colors.white, fontSize: 16),
                     ),
                     SliderTheme(
                       data: SliderTheme.of(context).copyWith(
@@ -575,9 +572,7 @@ class _CameraPageState extends State<CameraPage> {
           ),
 
           // Кнопка визуализации
-          VisualizationSettingsButton(
-            showcaseKey: _stepFour,
-          ),
+          VisualizationSettingsButton(showcaseKey: _stepFour),
 
           // Кнопка слайдера для регулирования желаемой степени похожести позы
           PoseSimilaritySliderButton(
@@ -603,16 +598,14 @@ class _CameraPageState extends State<CameraPage> {
                     strokeWidth: 3,
                   ),
                   const SizedBox(height: 16),
-                  const Text(
-                    "Model loading\nWait a second, please",
+                  Text(
+                    l10n.modelLoading,
                     textAlign: TextAlign.center,
-                    style: TextStyle(
+                    style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
-                      shadows: [
-                        Shadow(blurRadius: 10, color: Colors.black54),
-                      ],
+                      shadows: [Shadow(blurRadius: 10, color: Colors.black54)],
                     ),
                   ),
                 ],
@@ -627,15 +620,22 @@ class _CameraPageState extends State<CameraPage> {
               child: Center(
                 child: AnimatedSwitcher(
                   duration: const Duration(milliseconds: 400),
-                  transitionBuilder: (Widget child, Animation<double> animation) {
-                    return FadeTransition(
-                      opacity: animation,
-                      child: ScaleTransition(scale: animation, child: child),
-                    );
-                  },
+                  transitionBuilder:
+                      (Widget child, Animation<double> animation) {
+                        return FadeTransition(
+                          opacity: animation,
+                          child: ScaleTransition(
+                            scale: animation,
+                            child: child,
+                          ),
+                        );
+                      },
                   child: Container(
                     key: ValueKey<String>(statusText),
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 10,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.black.withOpacity(0.7),
                       borderRadius: BorderRadius.circular(20),

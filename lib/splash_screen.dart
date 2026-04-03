@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:preciosai/l10n/app_localizations.dart';
 import 'package:preciosai/onboarding_gate.dart';
 import 'package:video_player/video_player.dart';
 
@@ -109,6 +110,7 @@ class _SplashScreenState extends State<SplashScreenVideo> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Scaffold(
       body: _controller.value.isInitialized
           ? Stack(
@@ -144,9 +146,9 @@ class _SplashScreenState extends State<SplashScreenVideo> {
                           ),
                           child: TextButton(
                             onPressed: _skip,
-                            child: const Text(
-                              'Skip intro',
-                              style: TextStyle(color: Colors.white),
+                            child: Text(
+                              l10n.skip,
+                              style: const TextStyle(color: Colors.white),
                             ),
                           ),
                         ),

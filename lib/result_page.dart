@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:preciosai/l10n/app_localizations.dart';
 
 import 'album_page.dart';
 import 'camera_page.dart';
@@ -12,6 +13,7 @@ import 'neural_background_circles.dart';
 class ResultPage extends StatefulWidget {
   final List<Uint8List> bytes;
   final String refImagePath;
+
   const ResultPage({
     super.key,
     required this.bytes,
@@ -74,6 +76,7 @@ class _ResultPageState extends State<ResultPage> {
     if (_loading) {
       return const Center(child: CircularProgressIndicator());
     }
+    final l10n = AppLocalizations.of(context)!;
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -96,7 +99,7 @@ class _ResultPageState extends State<ResultPage> {
                     height: kToolbarHeight * 1.3,
                     alignment: Alignment.center,
                     child: Text(
-                      'Nice work!',
+                      l10n.niceWork,
                       style: TextStyle(
                         color: Colors.grey.shade900,
                         fontSize: 26,
@@ -344,9 +347,7 @@ class _ComparisonPainter extends CustomPainter {
     canvas.save();
 
     final clipWidth = size.width * divider;
-    canvas.clipRect(
-      Rect.fromLTWH(0, 0, clipWidth, size.height),
-    );
+    canvas.clipRect(Rect.fromLTWH(0, 0, clipWidth, size.height));
 
     canvas.drawImageRect(after, srcRectAfter, dstRectAfter, paint);
     canvas.restore();
@@ -361,7 +362,6 @@ class _ComparisonPainter extends CustomPainter {
   bool shouldRepaint(covariant _ComparisonPainter old) =>
       old.divider != divider || old.before != before || old.after != after;
 }
-
 
 class _ZoomableComparison extends StatefulWidget {
   final Uint8List before;

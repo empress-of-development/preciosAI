@@ -15,7 +15,7 @@ data class OverlayState(
     val captureRequested: Boolean,
     val arrowAnimationOffset: Float,
     val poseComparisonDetails: Map<String, Float?>? = null,
-    val visualizationMode: String = "skeleton+capsules",
+    val visualizationMode: String = "skeletonCapsules",
     val isPortrait: Boolean = false,
     val focusPoint: PointF? = null,
     val focusAlpha: Int = 0
@@ -326,14 +326,14 @@ class OverlayRenderer @JvmOverloads constructor(private val poseMode: String) {
                         var px = leftBorder + pxCam * scale + dx
                         var py = topBorder + pyCam * scale + dy
 
-                        if (state.visualizationMode in listOf("skeleton", "skeleton+capsules")) {
+                        if (state.visualizationMode in listOf("skeleton", "skeletonCapsules")) {
                             canvas.drawCircle(px, py, 8f, jointPaint)
                         }
                         points[i] = PointF(px, py)
                     }
                 }
 
-                if (state.visualizationMode in listOf("skeleton", "skeleton+capsules")) {
+                if (state.visualizationMode in listOf("skeleton", "skeletonCapsules")) {
                     var skeletonJoints = currentPoseIndexes.skeletonPartially
                     var drawRes = drawLimb(canvas, points, currentPoseIndexes.skeletonUpperBodyIndexes)
                     if (!drawRes) skeletonJoints = currentPoseIndexes.skeletonPartially.plus(currentPoseIndexes.skeletonUpperBody)
@@ -353,7 +353,7 @@ class OverlayRenderer @JvmOverloads constructor(private val poseMode: String) {
 
                 if (
                     idx != resList.size - 1 &&
-                    state.visualizationMode in listOf("capsules", "skeleton+capsules") &&
+                    state.visualizationMode in listOf("capsules", "skeletonCapsules") &&
                     state.poseComparisonDetails != null
                 ) {
                     capsulePoseRenderer.drawPose(canvas, points, state.poseComparisonDetails)

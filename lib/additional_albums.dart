@@ -5,6 +5,7 @@ import 'package:dotted_border/dotted_border.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:image_picker/image_picker.dart';
+import 'package:preciosai/l10n/app_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'album_page.dart';
@@ -85,6 +86,7 @@ class AddAlbumCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return GestureDetector(
       onTap: onTap,
       child: DottedBorder(
@@ -100,15 +102,17 @@ class AddAlbumCard extends StatelessWidget {
               color: Colors.white.withOpacity(0.06),
               borderRadius: BorderRadius.circular(22),
             ),
-            child: const Stack(
+            child: Stack(
               children: [
-                Center(child: Icon(Icons.add, size: 56, color: Colors.white)),
+                const Center(
+                  child: Icon(Icons.add, size: 56, color: Colors.white),
+                ),
                 Positioned(
                   left: 12,
                   bottom: 12,
                   child: Text(
-                    'Create new album',
-                    style: TextStyle(
+                    l10n.createNewAlbum,
+                    style: const TextStyle(
                       color: Colors.white,
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
@@ -145,13 +149,19 @@ class _CreateAlbumScreenState extends State<CreateAlbumScreen> {
   @override
   void initState() {
     super.initState();
-    titleCtrl = TextEditingController(
-      text: widget.existing?.title ?? 'My Album',
-    );
+    titleCtrl = TextEditingController(text: widget.existing?.title);
     cover = widget.existing?.cover;
     items = List<AlbumImageRef>.from(
       widget.existing?.imagesPathList ?? const [],
     );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (titleCtrl.text.isEmpty && !isEdit) {
+      titleCtrl.text = AppLocalizations.of(context)!.defaultAlbumName;
+    }
   }
 
   @override
@@ -161,6 +171,7 @@ class _CreateAlbumScreenState extends State<CreateAlbumScreen> {
   }
 
   Future<void> _pickCover() async {
+    final l10n = AppLocalizations.of(context)!;
     final choice = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: Colors.black,
@@ -169,17 +180,17 @@ class _CreateAlbumScreenState extends State<CreateAlbumScreen> {
           children: [
             ListTile(
               leading: const Icon(Icons.image, color: Colors.white),
-              title: const Text(
-                'Choose from Assets',
-                style: TextStyle(color: Colors.white),
+              title: Text(
+                l10n.chooseFromAssets,
+                style: const TextStyle(color: Colors.white),
               ),
               onTap: () => Navigator.pop(context, 'assets'),
             ),
             ListTile(
               leading: const Icon(Icons.photo_library, color: Colors.white),
-              title: const Text(
-                'Choose from Gallery',
-                style: TextStyle(color: Colors.white),
+              title: Text(
+                l10n.chooseFromGallery,
+                style: const TextStyle(color: Colors.white),
               ),
               onTap: () => Navigator.pop(context, 'gallery'),
             ),
@@ -271,11 +282,33 @@ class _CreateAlbumScreenState extends State<CreateAlbumScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
-        backgroundColor: Colors.black,
-        title: const Text('New Album'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Colors.indigo, Colors.grey.shade100],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: const BorderRadius.vertical(
+              bottom: Radius.circular(24),
+            ),
+          ),
+        ),
+        title: Text(
+          l10n.newAlbum,
+          style: TextStyle(
+            color: Colors.grey.shade900,
+            fontSize: 26,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        iconTheme: const IconThemeData(color: Colors.black),
         actions: [
           IconButton(
             icon: Icon(
@@ -321,7 +354,7 @@ class _CreateAlbumScreenState extends State<CreateAlbumScreen> {
                             fontWeight: FontWeight.w700,
                           ),
                           decoration: InputDecoration(
-                            hintText: 'Album name',
+                            hintText: l10n.albumName,
                             hintStyle: TextStyle(
                               color: Colors.white.withOpacity(0.4),
                             ),
@@ -398,9 +431,9 @@ class _CreateAlbumScreenState extends State<CreateAlbumScreen> {
                                       color: Colors.deepPurple,
                                       borderRadius: BorderRadius.circular(8),
                                     ),
-                                    child: const Text(
-                                      'Cover',
-                                      style: TextStyle(
+                                    child: Text(
+                                      l10n.cover,
+                                      style: const TextStyle(
                                         color: Colors.white,
                                         fontSize: 11,
                                       ),
@@ -425,10 +458,10 @@ class _CreateAlbumScreenState extends State<CreateAlbumScreen> {
                         child: ElevatedButton.icon(
                           onPressed: _pickFromAssets,
                           icon: const Icon(Icons.folder),
-                          label: const Text(
-                            'Basic images',
+                          label: Text(
+                            l10n.basicImages,
                             textAlign: TextAlign.center,
-                            style: TextStyle(fontSize: 20),
+                            style: const TextStyle(fontSize: 20),
                           ),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.white12,
@@ -445,10 +478,10 @@ class _CreateAlbumScreenState extends State<CreateAlbumScreen> {
                         child: ElevatedButton.icon(
                           onPressed: _pickFromGallery,
                           icon: const Icon(Icons.photo_library),
-                          label: const Text(
-                            'Gallery',
+                          label: Text(
+                            l10n.gallery,
                             textAlign: TextAlign.center,
-                            style: TextStyle(fontSize: 20),
+                            style: const TextStyle(fontSize: 20),
                           ),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.deepPurple,
@@ -505,8 +538,13 @@ class _PickAssetsScreenState extends State<PickAssetsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final List<String> assets = _manifestMap.keys
-        .where((String key) => key.startsWith('assets/gallery_images/'))
+        .where(
+          (String key) =>
+              key.startsWith('assets/gallery_images/') &&
+              key.toLowerCase().endsWith('.jpg'),
+        )
         .toList();
 
     final canDone = selected.isNotEmpty;
@@ -514,8 +552,31 @@ class _PickAssetsScreenState extends State<PickAssetsScreen> {
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
-        backgroundColor: Colors.black,
-        title: const Text('Choose from basic reference images'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Colors.indigo, Colors.grey.shade100],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: const BorderRadius.vertical(
+              bottom: Radius.circular(24),
+            ),
+          ),
+        ),
+        /*
+        title: Text(
+          l10n.chooseFromBasicImages,
+          style: TextStyle(
+            color: Colors.grey.shade900,
+            fontSize: 26,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+         */
+        iconTheme: const IconThemeData(color: Colors.black),
         actions: [
           IconButton(
             icon: Icon(
@@ -538,43 +599,48 @@ class _PickAssetsScreenState extends State<PickAssetsScreen> {
               crossAxisSpacing: 8,
             ),
             itemCount: assets.length,
-            itemBuilder: (_, index) {
-              final path = assets[index];
-              final checked = selected.contains(path);
+            itemBuilder: (ctx, i) {
+              final path = assets[i];
+              final isSel = selected.contains(path);
 
               return GestureDetector(
                 onTap: () {
                   setState(() {
                     if (widget.singleSelect) {
-                      selected
-                        ..clear()
-                        ..add(path);
+                      selected.clear();
+                      selected.add(path);
                     } else {
-                      checked ? selected.remove(path) : selected.add(path);
+                      if (isSel) {
+                        selected.remove(path);
+                      } else {
+                        selected.add(path);
+                      }
                     }
                   });
                 },
                 child: Stack(
                   children: [
                     Positioned.fill(
-                      child: Image.asset(path, fit: BoxFit.cover),
-                    ),
-                    Positioned(
-                      right: 6,
-                      top: 6,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: checked ? Colors.deepPurple : Colors.black54,
-                          shape: BoxShape.circle,
-                        ),
-                        padding: const EdgeInsets.all(4),
-                        child: Icon(
-                          checked ? Icons.check : Icons.circle_outlined,
-                          size: 18,
-                          color: Colors.white,
-                        ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.asset(path, fit: BoxFit.cover),
                       ),
                     ),
+                    if (isSel)
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.deepPurple.withOpacity(0.4),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.white, width: 3),
+                        ),
+                        child: const Center(
+                          child: Icon(
+                            Icons.check,
+                            color: Colors.white,
+                            size: 40,
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               );

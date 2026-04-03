@@ -5,6 +5,8 @@ import 'package:preciosai/introduction/animated_intro_screen_3.dart';
 import 'package:preciosai/introduction/animated_intro_screen_4.dart';
 import 'package:preciosai/introduction/animated_intro_screen_5.dart';
 
+import 'package:preciosai/l10n/app_localizations.dart';
+
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key, required this.onDone});
 
@@ -118,12 +120,14 @@ class _BottomBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+
     return Row(
       children: [
         TextButton(
           onPressed: onSkip,
           style: TextButton.styleFrom(foregroundColor: Colors.white70),
-          child: const Text('Skip'),
+          child: Text(l10n.skip),
         ),
         const Spacer(),
         _Dots(count: count, index: index),
@@ -142,7 +146,7 @@ class _BottomBar extends StatelessWidget {
             duration: const Duration(milliseconds: 180),
             transitionBuilder: (child, anim) =>
                 ScaleTransition(scale: anim, child: child),
-            child: Text(isLast ? 'Done' : 'Next', key: ValueKey(isLast)),
+            child: Text(isLast ? l10n.done : l10n.next, key: ValueKey(isLast)),
           ),
         ),
       ],
