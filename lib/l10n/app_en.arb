@@ -9,7 +9,7 @@
   "picturePerfectSubtitle": "Say goodbye to awkward photos.\nWhether you’re behind the camera or in front of it, we’ll help you capture the perfect shot.",
   "findInspiration": "Find Your\nInspiration.",
   "findInspirationSubtitle": "Choose from curated poses or upload your own photo to recreate the look. Save ideas and plan your next shoot effortlessly.",
-  "letCameraGuideYou": "Let Your Camera\nGuide You.",
+  "letCameraGuideYou": "Let Your Camera\nGuide You",
   "letCameraGuideYouSubtitle": "Our smart overlay detects your subject’s pose.\nFollow the on-screen hints to adjust your pose and angle — the photo is captured automatically once everything aligns perfectly.",
   "yourPhotos": "Your Photos ",
   "stayYours": "Stay Yours",
@@ -64,7 +64,7 @@
   "cover": "Cover",
   "chooseFromBasicImages": "Choose from basic reference images",
   "createNewAlbum": "Create new album",
-  "defaultAlbumName": "New Album",
+  "defaultAlbumName": "My Album",
   "done": "Done",
   "next": "Next",
   "visualizationType": "{visualization, select, empty{Empty} skeleton{Skeleton} capsules{Capsules} skeletonCapsules{Skeleton+Capsules} other{Unknown}}"

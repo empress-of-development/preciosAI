@@ -929,7 +929,7 @@ class CameraView @JvmOverloads constructor(
                         // ждем несколько кадров, если все езе близко, включаем аудио и стрелку назад
                         if (autoZoom.tooCloseInd == 3) {
                             Log.d(TAG, "Turn on the audio, step_back_short.wav")
-                            CameraViewUtils.playAssetSound(context, audioPlayer, "flutter_assets/assets/audio/step_back_short.wav")
+                            // CameraViewUtils.playAssetSound(context, audioPlayer, "flutter_assets/assets/audio/step_back_short.wav")
                         }
                         if (autoZoom.tooCloseInd <= 3) {
                             autoZoom.tooCloseInd++
@@ -944,7 +944,7 @@ class CameraView @JvmOverloads constructor(
 
                     if (autoZoom.zoomDurationCount == autoZoom.zoomDurationThreshold && autoZoom.stage == "zoom") {
                         Log.d(TAG, "Turn on the audio, place_model.wav")
-                        CameraViewUtils.playAssetSound(context, audioPlayer, "flutter_assets/assets/audio/place_model.wav")
+                        // CameraViewUtils.playAssetSound(context, audioPlayer, "flutter_assets/assets/audio/place_model.wav")
                         autoZoom.stage = "location"
                     }
 

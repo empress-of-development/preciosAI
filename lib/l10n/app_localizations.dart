@@ -149,7 +149,7 @@ abstract class AppLocalizations {
   /// No description provided for @letCameraGuideYou.
   ///
   /// In en, this message translates to:
-  /// **'Let Your Camera\nGuide You.'**
+  /// **'Let Your Camera\nGuide You'**
   String get letCameraGuideYou;
 
   /// No description provided for @letCameraGuideYouSubtitle.
@@ -437,7 +437,7 @@ abstract class AppLocalizations {
   /// No description provided for @defaultAlbumName.
   ///
   /// In en, this message translates to:
-  /// **'New Album'**
+  /// **'My Album'**
   String get defaultAlbumName;
 
   /// No description provided for @done.

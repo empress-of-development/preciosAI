@@ -32,7 +32,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Choose from curated poses or upload your own photo to recreate the look. Save ideas and plan your next shoot effortlessly.';
 
   @override
-  String get letCameraGuideYou => 'Let Your Camera\nGuide You.';
+  String get letCameraGuideYou => 'Let Your Camera\nGuide You';
 
   @override
   String get letCameraGuideYouSubtitle =>
@@ -190,7 +190,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get createNewAlbum => 'Create new album';
 
   @override
-  String get defaultAlbumName => 'New Album';
+  String get defaultAlbumName => 'My Album';
 
   @override
   String get done => 'Done';
