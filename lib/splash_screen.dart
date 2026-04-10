@@ -30,7 +30,7 @@ class _SplashScreenState extends State<SplashScreenVideo> {
   void initState() {
     super.initState();
 
-    _controller = VideoPlayerController.asset('assets/home_screen.mp4');
+    _controller = VideoPlayerController.asset('assets/home_screen_old.mp4');
     _initVideo();
   }
 

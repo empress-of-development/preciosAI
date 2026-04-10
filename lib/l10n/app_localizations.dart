@@ -457,6 +457,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{visualization, select, empty{Empty} skeleton{Skeleton} capsules{Capsules} skeletonCapsules{Skeleton+Capsules} other{Unknown}}'**
   String visualizationType(String visualization);
+
+  /// No description provided for @about.
+  ///
+  /// In en, this message translates to:
+  /// **'About'**
+  String get about;
+
+  /// No description provided for @privacyPolicy.
+  ///
+  /// In en, this message translates to:
+  /// **'Privacy policy'**
+  String get privacyPolicy;
+
+  /// No description provided for @appGuide.
+  ///
+  /// In en, this message translates to:
+  /// **'App guide'**
+  String get appGuide;
+
+  /// No description provided for @infoText.
+  ///
+  /// In en, this message translates to:
+  /// **'Smart AI camera that nails the perfect pose and captures precious moments.'**
+  String get infoText;
+
+  /// No description provided for @openSourceLicenses.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Source Licenses'**
+  String get openSourceLicenses;
 }
 
 class _AppLocalizationsDelegate

@@ -67,5 +67,10 @@
   "defaultAlbumName": "My Album",
   "done": "Done",
   "next": "Next",
-  "visualizationType": "{visualization, select, empty{Empty} skeleton{Skeleton} capsules{Capsules} skeletonCapsules{Skeleton+Capsules} other{Unknown}}"
+  "visualizationType": "{visualization, select, empty{Empty} skeleton{Skeleton} capsules{Capsules} skeletonCapsules{Skeleton+Capsules} other{Unknown}}",
+  "about": "About",
+  "privacyPolicy": "Privacy policy",
+  "appGuide": "App guide",
+  "infoText": "Smart AI camera that nails the perfect pose and captures precious moments.",
+  "openSourceLicenses": "Open Source Licenses"
 }

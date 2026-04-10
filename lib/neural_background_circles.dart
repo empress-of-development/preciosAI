@@ -66,7 +66,7 @@ class _NeuralNetworkWithBlurredCirclesState
             Positioned(
               left: screenWidth * -0.25 + shift,
               top: screenHeight * -0.1,
-              child: _circle(Colors.indigo, screenWidth * 0.7),
+              child: _circle(Colors.deepPurple.shade300, screenWidth * 0.7),
             ),
             Positioned(
               right: screenWidth * -0.2 - shift,
@@ -76,7 +76,7 @@ class _NeuralNetworkWithBlurredCirclesState
             Positioned(
               left: screenWidth * 0.05,
               bottom: screenHeight * -0.2 + shift,
-              child: _circle(Colors.indigo.shade900, screenWidth * 0.7),
+              child: _circle(Colors.indigoAccent.shade400, screenWidth * 0.7),
             ),
 
             Positioned.fill(

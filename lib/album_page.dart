@@ -10,6 +10,7 @@ import 'package:preciosai/l10n/app_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:showcaseview/showcaseview.dart';
 import 'package:uuid/uuid.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'additional_albums.dart';
 import 'glowing_button.dart';
@@ -165,7 +166,7 @@ class _SelectedPhotoScreenState extends State<SelectedPhotoScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: Colors.deepPurple.shade50,
 
       body: Stack(
         children: [
@@ -384,11 +385,72 @@ class _AlbumScreenState extends State<AlbumScreen> {
     await AlbumStorage.deleteAlbumByUuid(album.uuid);
   }
 
+  Widget _buildDialogButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: SizedBox(
+        width: 130,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 28, color: Colors.grey.shade700),
+            const SizedBox(height: 4),
+            SizedBox(
+              height: 32,
+              child: Text(
+                label,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLicenseButton() {
+    return GestureDetector(
+      onTap: () {
+        showLicensePage(
+          context: context,
+          applicationName: 'PreciosAI Lite',
+          applicationVersion: '1.0.0',
+          applicationLegalese: '© 2026 PreciosAI',
+        );
+      },
+      child: SizedBox(
+        width: 130,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.description_outlined, size: 28, color: Colors.grey.shade700),
+            const SizedBox(height: 4),
+            SizedBox(
+              height: 32,
+              child: Text(
+                'Open Source\nLicenses',
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: Colors.deepPurple.shade50,
       extendBody: true,
       extendBodyBehindAppBar: true,
       body: MediaQuery.removePadding(
@@ -446,7 +508,7 @@ class _AlbumScreenState extends State<AlbumScreen> {
                 bottomRight: Radius.circular(24),
               ),
               child: Container(
-                color: Colors.white.withOpacity(0.35),
+                color: Colors.indigo.shade400.withOpacity(0.5),
                 height:
                     kToolbarHeight * 1.3 + MediaQuery.of(context).padding.top,
                 child: SafeArea(
@@ -463,17 +525,6 @@ class _AlbumScreenState extends State<AlbumScreen> {
                               fontWeight: FontWeight.bold,
                             ),
                           ),
-                        ),
-                      ),
-                      Positioned(
-                        right: 5,
-                        child: IconButton(
-                          icon: Icon(
-                            Icons.help_outline,
-                            color: Colors.purple.shade900,
-                            size: 40,
-                          ),
-                          onPressed: _startShowcase,
                         ),
                       ),
                     ],
@@ -648,6 +699,134 @@ class _AlbumScreenState extends State<AlbumScreen> {
                 ),
               ],
             ),
+            Positioned(
+              right: 15,
+              bottom: 32,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  PulsatingIconButton(
+                    icon: Icons.info_outline,
+                    color: Colors.grey.shade800,
+                    size: 40,
+                    onPressed: () {
+                      showGeneralDialog(
+                        context: context,
+                        barrierDismissible: true,
+                        barrierLabel: l10n.about,
+                        barrierColor: Colors.black54,
+                        transitionDuration: const Duration(milliseconds: 350),
+                        pageBuilder: (_, __, ___) => const SizedBox.shrink(),
+                        transitionBuilder: (context, animation, secondaryAnimation, child) {
+                          return ScaleTransition(
+                            scale: CurvedAnimation(
+                              parent: animation,
+                              curve: Curves.easeOutBack,
+                            ),
+                            child: FadeTransition(
+                              opacity: animation,
+                              child: Center(
+                                child: Material(
+                                  color: Colors.transparent,
+                                  child: Container(
+                                    width: 340,
+                                    padding: const EdgeInsets.all(24),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Text(
+                                          'PreciosAI Lite v1.0.0',
+                                          style: TextStyle(
+                                            fontSize: 20,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.black87,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 12),
+                                        Text(
+                                          l10n.infoText,
+                                          textAlign: TextAlign.center,
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            color: Colors.black54,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 24),
+                                        Row(
+                                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                                          children: [
+                                            _buildDialogButton(
+                                              icon: Icons.privacy_tip_outlined,
+                                              label: l10n.privacyPolicy,
+                                              onTap: () async {
+                                                Navigator.of(context).pop();
+                                                final url = Uri.parse(
+                                                  'https://gist.github.com/empress-of-development/c1c2a364df301fae6581421bd5888992',
+                                                );
+                                                try {
+                                                  await launchUrl(url, mode: LaunchMode.externalApplication);
+                                                } catch (e) {
+                                                  debugPrint('Could not launch $url: $e');
+                                                }
+                                              },
+                                            ),
+                                            _buildDialogButton(
+                                              icon: Icons.help_outline,
+                                              label: l10n.appGuide,
+                                              onTap: () {
+                                                Navigator.of(context).pop();
+                                                _startShowcase();
+                                              },
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 24),
+                                        Row(
+                                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                                          children: [
+                                            _buildDialogButton(
+                                              icon: Icons.description_outlined,
+                                              label: l10n.openSourceLicenses,
+                                              onTap: () {
+                                                showLicensePage(
+                                                  context: context,
+                                                  applicationName: 'PreciosAI Lite',
+                                                  applicationVersion: '1.0.0',
+                                                  applicationLegalese: '© 2026 PreciosAI',
+                                                );
+                                              },
+                                            ),
+                                          ]
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  ),
+                  Transform.translate(
+                    offset: const Offset(0, -8),
+                    child: Text(
+                      l10n.about,
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.grey.shade800,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
       ),
@@ -676,7 +855,7 @@ class AlbumCard extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(22),
           border: Border.all(
-            color: Colors.deepPurple.withOpacity(0.7),
+            color: Colors.grey.shade600.withOpacity(0.7),
             width: 8,
           ),
         ),
@@ -716,8 +895,8 @@ class AlbumCard extends StatelessWidget {
                 bottom: 12,
                 child: Text(
                   album.title,
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: Colors.deepPurple.shade100,
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
                   ),
@@ -812,7 +991,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
     final l10n = AppLocalizations.of(context)!;
 
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: Colors.deepPurple.shade50,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -1000,7 +1179,7 @@ class _PhotoHeroScreenState extends State<PhotoHeroScreen> {
     return GestureDetector(
       onTap: () => Navigator.pop(context),
       child: Scaffold(
-        backgroundColor: Colors.black,
+        backgroundColor: Colors.deepPurple.shade50,
         body: Stack(
           children: [
             Center(

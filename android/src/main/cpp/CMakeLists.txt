@@ -10,6 +10,8 @@ add_library(postprocess_cpp SHARED
 
 find_library(log_lib log)
 
+target_link_options(postprocess_cpp PRIVATE "-Wl,-z,max-page-size=16384")
+
 target_link_libraries(postprocess_cpp
         ${log_lib}
 )

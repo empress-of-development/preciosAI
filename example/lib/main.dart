@@ -5,12 +5,32 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:preciosai/l10n/app_localizations.dart';
 import 'package:preciosai/splash_screen.dart';
 import 'package:showcaseview/showcaseview.dart';
+import 'package:flutter/foundation.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // Это заставляет приложение отрисовываться под системными панелями
   await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   ShowcaseView.register();
+
+  LicenseRegistry.addLicense(() async* {
+    final licenses = [
+      ('Google MediaPipe', 'Apache License 2.0'),
+      ('Google LiteRT (TensorFlow Lite)', 'Apache License 2.0'),
+      ('OpenCV', 'BSD 3-Clause License'),
+      ('PyTorch ExecuTorch', 'BSD License'),
+      ('AndroidX CameraX', 'Apache License 2.0'),
+      ('AndroidX Core', 'Apache License 2.0'),
+      ('AndroidX AppCompat', 'Apache License 2.0'),
+      ('Google Material Components', 'Apache License 2.0'),
+      ('Lottie for Android (Airbnb)', 'Apache License 2.0'),
+      ('SnakeYAML', 'Apache License 2.0'),
+    ];
+
+    for (final (name, license) in licenses) {
+      yield LicenseEntryWithLineBreaks([name], license);
+    }
+  });
 
   runApp(const PreciosAIDemo());
 }

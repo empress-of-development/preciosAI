@@ -209,4 +209,20 @@ class AppLocalizationsEn extends AppLocalizations {
     });
     return '$_temp0';
   }
+
+  @override
+  String get about => 'About';
+
+  @override
+  String get privacyPolicy => 'Privacy policy';
+
+  @override
+  String get appGuide => 'App guide';
+
+  @override
+  String get infoText =>
+      'Smart AI camera that nails the perfect pose and captures precious moments.';
+
+  @override
+  String get openSourceLicenses => 'Open Source Licenses';
 }

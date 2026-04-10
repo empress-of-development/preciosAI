@@ -211,4 +211,20 @@ class AppLocalizationsDe extends AppLocalizations {
     });
     return '$_temp0';
   }
+
+  @override
+  String get about => 'Über';
+
+  @override
+  String get privacyPolicy => 'Datenschutzrichtlinie';
+
+  @override
+  String get appGuide => 'App-Anleitung';
+
+  @override
+  String get infoText =>
+      'Smarte KI-Kamera, die die perfekte Pose trifft und kostbare Momente festhält.';
+
+  @override
+  String get openSourceLicenses => 'Open-Source-Lizenzen';
 }

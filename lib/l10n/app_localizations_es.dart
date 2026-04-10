@@ -212,4 +212,20 @@ class AppLocalizationsEs extends AppLocalizations {
     });
     return '$_temp0';
   }
+
+  @override
+  String get about => 'Acerca de';
+
+  @override
+  String get privacyPolicy => 'Política\nde privacidad';
+
+  @override
+  String get appGuide => 'Guía de la app';
+
+  @override
+  String get infoText =>
+      'Cámara inteligente con IA que logra la pose perfecta y captura momentos preciosos.';
+
+  @override
+  String get openSourceLicenses => 'Licencias de código abierto';
 }

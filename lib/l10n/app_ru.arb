@@ -57,5 +57,10 @@
   "defaultAlbumName": "Мой альбом",
   "done": "Начать",
   "next": "Далее",
-  "visualizationType": "{visualization, select, empty{Нет} skeleton{Поза} capsules{Капсулы} skeletonCapsules{Поза+Капсулы} other{Unknown}}"
+  "visualizationType": "{visualization, select, empty{Нет} skeleton{Поза} capsules{Капсулы} skeletonCapsules{Поза+Капсулы} other{Unknown}}",
+  "about": "Инфо",
+  "privacyPolicy": "Политика\nконфиденциальности",
+  "appGuide": "Руководство",
+  "infoText": "Умная ИИ-камера, которая поможет запечатлеть идеальную позу и сохранить ценные моменты.",
+  "openSourceLicenses": "Лицензии открытого ПО"
 }

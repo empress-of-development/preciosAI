@@ -212,4 +212,20 @@ class AppLocalizationsRu extends AppLocalizations {
     });
     return '$_temp0';
   }
+
+  @override
+  String get about => 'Инфо';
+
+  @override
+  String get privacyPolicy => 'Политика\nконфиденциальности';
+
+  @override
+  String get appGuide => 'Руководство';
+
+  @override
+  String get infoText =>
+      'Умная ИИ-камера, которая поможет запечатлеть идеальную позу и сохранить ценные моменты.';
+
+  @override
+  String get openSourceLicenses => 'Лицензии открытого ПО';
 }

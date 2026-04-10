@@ -103,3 +103,57 @@ class RipplePainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant RipplePainter oldDelegate) => true;
 }
+
+class PulsatingIconButton extends StatefulWidget {
+  final IconData icon;
+  final VoidCallback onPressed;
+  final double size;
+  final Color color;
+
+  const PulsatingIconButton({
+    super.key,
+    required this.icon,
+    required this.onPressed,
+    this.size = 40,
+    this.color = Colors.black,
+  });
+
+  @override
+  State<PulsatingIconButton> createState() => _PulsatingIconButtonState();
+}
+
+class _PulsatingIconButtonState extends State<PulsatingIconButton>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 1200),
+      vsync: this,
+    )..repeat(reverse: true);
+
+    _animation = Tween<double>(begin: 1.0, end: 1.15).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ScaleTransition(
+      scale: _animation,
+      child: IconButton(
+        icon: Icon(widget.icon, color: widget.color, size: widget.size),
+        onPressed: widget.onPressed,
+      ),
+    );
+  }
+}

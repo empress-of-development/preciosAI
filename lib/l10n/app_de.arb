@@ -57,5 +57,10 @@
   "defaultAlbumName": "Mein Album",
   "done": "Los geht's",
   "next": "Weiter",
-  "visualizationType": "{visualization, select, empty{Keine} skeleton{Pose} capsules{Kapseln} skeletonCapsules{Pose+Kapseln} other{Unbekannt}}"
+  "visualizationType": "{visualization, select, empty{Keine} skeleton{Pose} capsules{Kapseln} skeletonCapsules{Pose+Kapseln} other{Unbekannt}}",
+  "about": "Über",
+  "privacyPolicy": "Datenschutzrichtlinie",
+  "appGuide": "App-Anleitung",
+  "infoText": "Smarte KI-Kamera, die die perfekte Pose trifft und kostbare Momente festhält.",
+  "openSourceLicenses": "Open-Source-Lizenzen"
 }

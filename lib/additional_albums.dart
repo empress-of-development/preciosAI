@@ -94,7 +94,7 @@ class AddAlbumCard extends StatelessWidget {
         radius: const Radius.circular(22),
         dashPattern: const [10, 8],
         strokeWidth: 5,
-        color: Colors.deepPurple.withOpacity(0.7),
+        color: Colors.grey.shade600.withOpacity(0.7),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(22),
           child: Container(
@@ -105,15 +105,29 @@ class AddAlbumCard extends StatelessWidget {
             child: Stack(
               children: [
                 const Center(
-                  child: Icon(Icons.add, size: 56, color: Colors.white),
+                  child: Icon(Icons.add, size: 56, color: Colors.black),
+                ),
+                Positioned.fill(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.bottomCenter,
+                        end: Alignment.topCenter,
+                        colors: [
+                          Colors.black.withOpacity(0.6),
+                          Colors.transparent,
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
                 Positioned(
                   left: 12,
                   bottom: 12,
                   child: Text(
                     l10n.createNewAlbum,
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: Colors.deepPurple.shade100,
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
                     ),
@@ -174,7 +188,7 @@ class _CreateAlbumScreenState extends State<CreateAlbumScreen> {
     final l10n = AppLocalizations.of(context)!;
     final choice = await showModalBottomSheet<String>(
       context: context,
-      backgroundColor: Colors.black,
+      backgroundColor: Colors.deepPurple.shade50,
       builder: (_) => SafeArea(
         child: Wrap(
           children: [
@@ -284,7 +298,7 @@ class _CreateAlbumScreenState extends State<CreateAlbumScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: Colors.deepPurple.shade50,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -550,7 +564,7 @@ class _PickAssetsScreenState extends State<PickAssetsScreen> {
     final canDone = selected.isNotEmpty;
 
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: Colors.deepPurple.shade50,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,

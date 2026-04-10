@@ -210,4 +210,20 @@ class AppLocalizationsPt extends AppLocalizations {
     });
     return '$_temp0';
   }
+
+  @override
+  String get about => 'Sobre';
+
+  @override
+  String get privacyPolicy => 'Política\nde privacidade';
+
+  @override
+  String get appGuide => 'Guia do app';
+
+  @override
+  String get infoText =>
+      'Câmera inteligente com IA que acerta a pose perfeita e captura momentos preciosos.';
+
+  @override
+  String get openSourceLicenses => 'Licenças de código aberto';
 }

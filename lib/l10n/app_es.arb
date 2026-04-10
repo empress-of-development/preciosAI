@@ -57,5 +57,10 @@
   "defaultAlbumName": "Mi álbum",
   "done": "Vamos",
   "next": "Siguiente",
-  "visualizationType": "{visualization, select, empty{Ninguna} skeleton{Pose} capsules{Cápsulas} skeletonCapsules{Pose+Cápsulas} other{Unknown}}"
+  "visualizationType": "{visualization, select, empty{Ninguna} skeleton{Pose} capsules{Cápsulas} skeletonCapsules{Pose+Cápsulas} other{Unknown}}",
+  "about": "Acerca de",
+  "privacyPolicy": "Política\nde privacidad",
+  "appGuide": "Guía de la app",
+  "infoText": "Cámara inteligente con IA que logra la pose perfecta y captura momentos preciosos.",
+  "openSourceLicenses": "Licencias de código abierto"
 }

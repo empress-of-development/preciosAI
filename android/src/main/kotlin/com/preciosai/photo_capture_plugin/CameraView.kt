@@ -87,6 +87,7 @@ object PredictorManager {
                 Log.d("PredictorManager", "Starting model load: $modelType")
 
                 val newPredictor = when (modelType) {
+                    /*
                     "MMPoseEstimator" -> MMPoseEstimator(context)
                     "YOLOPoseEstimator" -> YOLOPoseEstimator(
                         context,
@@ -94,6 +95,7 @@ object PredictorManager {
                         CameraViewUtils.loadLabels(),
                         useGpu = true
                     )
+                     */
                     else -> MediaPipeEstimator(context)
                 }
 

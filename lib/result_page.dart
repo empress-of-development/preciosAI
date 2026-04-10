@@ -79,7 +79,7 @@ class _ResultPageState extends State<ResultPage> {
     final l10n = AppLocalizations.of(context)!;
 
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: Colors.deepPurple.shade50,
       body: Stack(
         children: [
           const NeuralNetworkWithBlurredCircles(),
